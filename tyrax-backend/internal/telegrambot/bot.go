@@ -1,0 +1,689 @@
+package telegrambot
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/tyrax/tyrax-backend/internal/config"
+	"github.com/tyrax/tyrax-backend/internal/model"
+	"github.com/tyrax/tyrax-backend/internal/repository"
+	"github.com/tyrax/tyrax-backend/internal/service"
+)
+
+const (
+	updateTimeoutSec = 60
+	dbOpTimeout      = 5 * time.Second
+
+	apkURL = "https://tyrax.app/download/tyrax.apk"
+)
+
+// Reply-keyboard button captions. The text a user sends when tapping a reply
+// button equals the caption verbatim, so these constants are the routing keys.
+const (
+	btnAccount = "📊 МОЙ АККАУНТ"
+	btnAndroid = "📱 Android"
+	btnIOS     = "🍎 iPhone/iPad"
+	btnPC      = "💻 Windows/Mac"
+	btnDevices = "🛠 Мои устройства"
+	btnBuy     = "💳 Купить / продлить"
+	btnHelp    = "🆘 Помощь"
+)
+
+// Static, terminal-styled replies. We send these as plain text (no Markdown
+// parse mode) on purpose: the copy contains '_', '−', '·', '#' and '@handles'
+// that would otherwise need fragile escaping and could fail the send call.
+const (
+	msgAccessGranted = "▓▓▓ ACCESS GRANTED ▓▓▓\n\n" +
+		"ИДЕНТИФИКАЦИЯ ПОДТВЕРЖДЕНА.\n" +
+		"Открой приложение TYRAX — ты уже внутри системы."
+
+	msgStartNoToken = "▓▓▓ TYRAX ▓▓▓\nБЕЗ РАЗРЕШЕНИЯ.\n\n" +
+		"Используй приложение TYRAX для входа,\n" +
+		"или введи /help если что-то не работает."
+
+	msgLinkInvalid    = "❌ Ссылка недействительна или устарела."
+	msgNoAccount      = "❌ Аккаунт не найден. Войди через приложение TYRAX."
+	msgNoAccountShort = "❌ Аккаунт не найден"
+	msgUseMenu        = "Используй меню ниже."
+	msgDeviceLimit    = "❌ Достигнут лимит устройств. Удали старое в разделе 🛠 Мои устройства."
+	msgDeviceDeleted  = "✅ УСТРОЙСТВО УДАЛЕНО."
+	msgGenericErr     = "⚠️ Что-то пошло не так. Попробуй позже."
+	msgPaymentErr     = "⚠️ Ошибка создания платежа. Попробуй позже."
+
+	msgAndroid = "▓ ANDROID ▓\n\n" +
+		"Скачай приложение TYRAX\n" +
+		"Войди через Telegram или email\n" +
+		"Нажми ENTER — готово"
+
+	msgIOS = "▓ iPHONE / iPAD ▓\n\n" +
+		"Нативного приложения пока нет.\n" +
+		"Подключайся через WireGuard — 1 минута:\n\n" +
+		"Установи WireGuard из App Store\n" +
+		"Нажми кнопку ниже — пришлём конфиг\n" +
+		"Открой файл → Import to WireGuard → готово"
+
+	msgPC = "▓ WINDOWS / MAC ▓\n\n" +
+		"Нативного приложения пока нет.\n" +
+		"Подключайся через WireGuard — 2 минуты:\n\n" +
+		"Скачай WireGuard: wireguard.com/install\n" +
+		"Нажми кнопку ниже — пришлём конфиг\n" +
+		"Открой WireGuard → Import tunnel → готово"
+
+	msgHelp = "▓ ПОМОЩЬ ▓\n\n" +
+		"Не подключается? Тормозит?\n" +
+		"Вопрос по оплате?\n\n" +
+		"Напиши нам — ответим:\n" +
+		"👉 @tyrax_support\n\n" +
+		"DOMINION — приоритетная поддержка 24/7."
+)
+
+// Bot bundles the long-lived dependencies the update loop needs.
+type Bot struct {
+	api        *tgbotapi.BotAPI
+	db         *pgxpool.Pool
+	cfg        *config.Config
+	userRepo   repository.UserRepository
+	deviceRepo repository.DeviceRepository
+	vpnSvc     service.VPNService
+	paymentSvc service.PaymentService
+}
+
+// Start launches the Telegram bot worker. Safe to run in a goroutine: if the
+// token is unset or the API rejects it, the worker logs and returns without
+// affecting the rest of the server.
+func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paymentSvc service.PaymentService) {
+	if cfg.TelegramToken == "" {
+		slog.Warn("telegram bot: TELEGRAM_BOT_TOKEN unset, worker disabled")
+		return
+	}
+
+	api, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
+	if err != nil {
+		slog.Error("telegram bot: init failed", slog.String("error", err.Error()))
+		return
+	}
+	slog.Info("telegram bot: online", slog.String("username", api.Self.UserName))
+
+	b := &Bot{
+		api:        api,
+		db:         db,
+		cfg:        cfg,
+		userRepo:   repository.NewUserRepository(db),
+		deviceRepo: repository.NewDeviceRepository(db),
+		vpnSvc:     vpnSvc,
+		paymentSvc: paymentSvc,
+	}
+
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = updateTimeoutSec
+	for update := range api.GetUpdatesChan(u) {
+		b.dispatch(update)
+	}
+}
+
+func (b *Bot) dispatch(update tgbotapi.Update) {
+	switch {
+	case update.CallbackQuery != nil:
+		b.handleCallback(update.CallbackQuery)
+	case update.Message != nil:
+		b.handleMessage(update.Message)
+	}
+}
+
+// ── Message routing ──────────────────────────────────────────────────────────
+
+func (b *Bot) handleMessage(msg *tgbotapi.Message) {
+	if msg.IsCommand() {
+		switch msg.Command() {
+		case "start":
+			b.handleStart(msg)
+		case "menu":
+			b.sendMainMenu(msg.Chat.ID, msgUseMenu)
+		case "help":
+			b.sendText(msg.Chat.ID, msgHelp)
+		default:
+			b.sendMainMenu(msg.Chat.ID, msgUseMenu)
+		}
+		return
+	}
+
+	switch strings.TrimSpace(msg.Text) {
+	case btnAccount:
+		b.handleAccount(msg)
+	case btnAndroid:
+		b.handleAndroid(msg.Chat.ID)
+	case btnIOS:
+		b.handlePlatformWG(msg.Chat.ID, msgIOS, "ios")
+	case btnPC:
+		b.handlePlatformWG(msg.Chat.ID, msgPC, "pc")
+	case btnDevices:
+		b.handleDevices(msg)
+	case btnBuy:
+		b.handleBuyStart(msg.Chat.ID)
+	case btnHelp:
+		b.sendText(msg.Chat.ID, msgHelp)
+	default:
+		b.sendMainMenu(msg.Chat.ID, msgUseMenu)
+	}
+}
+
+// handleStart confirms /start <token> deep links. The token's user_id column is
+// a UUID FK to users.id, so we resolve (or create) the identity first and bind
+// its UUID to the token — the app login flow reads that user_id back.
+func (b *Bot) handleStart(msg *tgbotapi.Message) {
+	token := strings.TrimSpace(msg.CommandArguments())
+	if token == "" {
+		slog.Info("telegram bot", slog.String("action", "start_no_token"), slog.Int64("telegram_id", msg.From.ID))
+		b.sendMainMenu(msg.Chat.ID, msgStartNoToken)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	pending, err := tokenPending(ctx, b.db, token)
+	if err != nil {
+		b.fail(msg.Chat.ID, "start_token_lookup", msg.From.ID, "", err)
+		return
+	}
+	if !pending {
+		b.sendText(msg.Chat.ID, msgLinkInvalid)
+		return
+	}
+
+	user, created, err := b.resolveUser(ctx, msg.From.ID, msg.From.UserName)
+	if err != nil {
+		b.fail(msg.Chat.ID, "start_resolve_user", msg.From.ID, "", err)
+		return
+	}
+
+	confirmed, err := confirmToken(ctx, b.db, token, user.ID)
+	if err != nil {
+		b.fail(msg.Chat.ID, "start_confirm", msg.From.ID, user.ID, err)
+		return
+	}
+	if !confirmed {
+		b.sendText(msg.Chat.ID, msgLinkInvalid)
+		return
+	}
+
+	slog.Info("telegram bot",
+		slog.String("action", "start_confirmed"),
+		slog.Int64("telegram_id", msg.From.ID),
+		slog.String("user_id", user.ID),
+		slog.Bool("created", created),
+	)
+	m := tgbotapi.NewMessage(msg.Chat.ID, msgAccessGranted)
+	m.ReplyMarkup = mainMenuKeyboard()
+	b.send(m)
+}
+
+func (b *Bot) handleAccount(msg *tgbotapi.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.userRepo.FindByTelegramID(ctx, msg.From.ID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.sendText(msg.Chat.ID, msgNoAccount)
+		return
+	}
+	if err != nil {
+		b.fail(msg.Chat.ID, "account_find_user", msg.From.ID, "", err)
+		return
+	}
+
+	count, err := b.deviceRepo.CountByUser(ctx, user.ID)
+	if err != nil {
+		b.fail(msg.Chat.ID, "account_count_devices", msg.From.ID, user.ID, err)
+		return
+	}
+
+	slog.Info("telegram bot", slog.String("action", "account"), slog.Int64("telegram_id", msg.From.ID), slog.String("user_id", user.ID))
+
+	limit := service.DeviceLimit(user.SubscriptionTier)
+	traffic := "∞"
+	validUntil := "АКТИВЕН"
+	if user.SubscriptionTier == model.TierFree {
+		traffic = "3 ГБ / мес"
+	} else if user.SubscriptionEnd != nil {
+		validUntil = user.SubscriptionEnd.Format("02.01.2006")
+	}
+
+	text := fmt.Sprintf(
+		"◈ TYRAX ID: #00%s\n"+
+			"◈ СТАТУС: %s\n"+
+			"◈ УСТРОЙСТВ: %d/%d\n"+
+			"◈ ТРАФИК: %s\n"+
+			"◈ ДЕЙСТВУЕТ ДО: %s",
+		user.ID, user.SubscriptionTier, count, limit, traffic, validUntil,
+	)
+	b.sendText(msg.Chat.ID, text)
+}
+
+func (b *Bot) handleAndroid(chatID int64) {
+	slog.Info("telegram bot", slog.String("action", "android"), slog.Int64("telegram_id", chatID))
+	m := tgbotapi.NewMessage(chatID, msgAndroid)
+	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Скачать APK", apkURL),
+		),
+	)
+	b.send(m)
+}
+
+// handlePlatformWG sends the WireGuard onboarding copy plus a "получить конфиг"
+// button for the given platform ("ios" or "pc").
+func (b *Bot) handlePlatformWG(chatID int64, text, platform string) {
+	slog.Info("telegram bot", slog.String("action", "platform_"+platform), slog.Int64("telegram_id", chatID))
+	m := tgbotapi.NewMessage(chatID, text)
+	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📥 Получить конфиг", "tyrax_config:"+platform),
+		),
+	)
+	b.send(m)
+}
+
+func (b *Bot) handleDevices(msg *tgbotapi.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.userRepo.FindByTelegramID(ctx, msg.From.ID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.sendText(msg.Chat.ID, msgNoAccount)
+		return
+	}
+	if err != nil {
+		b.fail(msg.Chat.ID, "devices_find_user", msg.From.ID, "", err)
+		return
+	}
+
+	devices, err := b.deviceRepo.GetByUserID(ctx, user.ID)
+	if err != nil {
+		b.fail(msg.Chat.ID, "devices_list", msg.From.ID, user.ID, err)
+		return
+	}
+
+	slog.Info("telegram bot", slog.String("action", "devices"), slog.Int64("telegram_id", msg.From.ID), slog.String("user_id", user.ID))
+
+	if len(devices) == 0 {
+		b.sendText(msg.Chat.ID, "▓ МОИ УСТРОЙСТВА ▓\n\n"+
+			"Устройств нет.\n"+
+			"Подключи первое через раздел Android, iOS или ПК.")
+		return
+	}
+
+	limit := service.DeviceLimit(user.SubscriptionTier)
+	var sb strings.Builder
+	sb.WriteString("▓ МОИ УСТРОЙСТВА ▓\n\n")
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(devices))
+	for i, d := range devices {
+		sb.WriteString(fmt.Sprintf("[%d] %s — создано %s\n", i+1, d.Name, d.CreatedAt.Format("02.01.2006")))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✕ "+d.Name, "tyrax_del:"+d.ID),
+		))
+	}
+	sb.WriteString(fmt.Sprintf("\nЛимит: %d/%d слотов занято.\n", len(devices), limit))
+	sb.WriteString("Нажми × чтобы удалить устройство.")
+
+	m := tgbotapi.NewMessage(msg.Chat.ID, sb.String())
+	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+	b.send(m)
+}
+
+func (b *Bot) handleBuyStart(chatID int64) {
+	slog.Info("telegram bot", slog.String("action", "buy_start"), slog.Int64("telegram_id", chatID))
+	m := tgbotapi.NewMessage(chatID, "▓ ПОДПИСКА ▓\n\nВыбери тариф:")
+	m.ReplyMarkup = tierKeyboard()
+	b.send(m)
+}
+
+// ── Callback routing ─────────────────────────────────────────────────────────
+
+func (b *Bot) handleCallback(cq *tgbotapi.CallbackQuery) {
+	data := cq.Data
+	switch {
+	case data == "tyrax_back_tier":
+		b.editTierSelection(cq)
+	case strings.HasPrefix(data, "tyrax_config:"):
+		b.handleConfigCallback(cq, strings.TrimPrefix(data, "tyrax_config:"))
+	case strings.HasPrefix(data, "tyrax_del:"):
+		b.handleDeleteCallback(cq, strings.TrimPrefix(data, "tyrax_del:"))
+	case strings.HasPrefix(data, "tyrax_tier:"):
+		b.handleTierCallback(cq, strings.TrimPrefix(data, "tyrax_tier:"))
+	case strings.HasPrefix(data, "tyrax_period:"):
+		b.handlePeriodCallback(cq, strings.TrimPrefix(data, "tyrax_period:"))
+	case strings.HasPrefix(data, "tyrax_pay:"):
+		b.handlePayCallback(cq, strings.TrimPrefix(data, "tyrax_pay:"))
+	default:
+		b.answerCallback(cq.ID, "")
+	}
+}
+
+func (b *Bot) handleConfigCallback(cq *tgbotapi.CallbackQuery, platform string) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.userRepo.FindByTelegramID(ctx, cq.From.ID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.answerCallback(cq.ID, msgNoAccountShort)
+		return
+	}
+	if err != nil {
+		slog.Error("telegram bot", slog.String("action", "config_find_user"), slog.Int64("telegram_id", cq.From.ID), slog.String("error", err.Error()))
+		b.answerCallback(cq.ID, msgGenericErr)
+		return
+	}
+
+	label := platform + "-bot"
+	cfgRes, err := b.vpnSvc.AddDevice(ctx, user.ID, label)
+	if errors.Is(err, service.ErrDeviceLimitReached) {
+		b.answerCallback(cq.ID, msgDeviceLimit)
+		return
+	}
+	if err != nil {
+		slog.Error("telegram bot", slog.String("action", "config_add_device"), slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		b.answerCallback(cq.ID, msgGenericErr)
+		return
+	}
+
+	conf := cfgRes.WireGuardConf
+	if conf == "" {
+		conf = cfgRes.VlessConf
+	}
+	if conf == "" {
+		slog.Error("telegram bot", slog.String("action", "config_empty"), slog.String("user_id", user.ID))
+		b.answerCallback(cq.ID, msgGenericErr)
+		return
+	}
+
+	filename := "tyrax-" + platform + ".conf"
+	doc := tgbotapi.NewDocument(cq.Message.Chat.ID, tgbotapi.FileBytes{Name: filename, Bytes: []byte(conf)})
+	doc.Caption = "▓ КОНФИГ TYRAX ▓\nИмпортируй файл в WireGuard."
+	b.send(doc)
+
+	slog.Info("telegram bot", slog.String("action", "config_delivered"), slog.Int64("telegram_id", cq.From.ID), slog.String("user_id", user.ID), slog.String("platform", platform))
+	b.answerCallback(cq.ID, "")
+}
+
+func (b *Bot) handleDeleteCallback(cq *tgbotapi.CallbackQuery, deviceID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.userRepo.FindByTelegramID(ctx, cq.From.ID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.answerCallback(cq.ID, msgNoAccountShort)
+		return
+	}
+	if err != nil {
+		slog.Error("telegram bot", slog.String("action", "delete_find_user"), slog.Int64("telegram_id", cq.From.ID), slog.String("error", err.Error()))
+		b.answerCallback(cq.ID, msgGenericErr)
+		return
+	}
+
+	// Delete filters by (id, user_id): a device not owned by this user never matches.
+	if err := b.deviceRepo.Delete(ctx, deviceID, user.ID); err != nil {
+		if errors.Is(err, repository.ErrDeviceNotFound) {
+			b.answerCallback(cq.ID, msgNoAccountShort)
+			return
+		}
+		slog.Error("telegram bot", slog.String("action", "delete_device"), slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		b.answerCallback(cq.ID, msgGenericErr)
+		return
+	}
+
+	slog.Info("telegram bot", slog.String("action", "device_deleted"), slog.Int64("telegram_id", cq.From.ID), slog.String("user_id", user.ID))
+	b.send(tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, msgDeviceDeleted))
+	b.answerCallback(cq.ID, "")
+}
+
+func (b *Bot) handleTierCallback(cq *tgbotapi.CallbackQuery, tier string) {
+	b.answerCallback(cq.ID, "")
+	text := fmt.Sprintf("▓ %s ▓\n\nВыбери период:", tier)
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text)
+	kb := periodKeyboard(tier)
+	edit.ReplyMarkup = &kb
+	b.send(edit)
+}
+
+func (b *Bot) editTierSelection(cq *tgbotapi.CallbackQuery) {
+	b.answerCallback(cq.ID, "")
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, "▓ ПОДПИСКА ▓\n\nВыбери тариф:")
+	kb := tierKeyboard()
+	edit.ReplyMarkup = &kb
+	b.send(edit)
+}
+
+func (b *Bot) handlePeriodCallback(cq *tgbotapi.CallbackQuery, rest string) {
+	tier, months, ok := parseTierMonths(rest)
+	if !ok {
+		b.answerCallback(cq.ID, "")
+		return
+	}
+	b.answerCallback(cq.ID, "")
+
+	total := int(service.CalculatePrice(tier, months))
+	text := fmt.Sprintf("▓ ОПЛАТА ▓\n\n%s · %d мес · %d ₽\n\nВыбери способ оплаты:", tier, months, total)
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text)
+	kb := paymentKeyboard(tier, months)
+	edit.ReplyMarkup = &kb
+	b.send(edit)
+}
+
+func (b *Bot) handlePayCallback(cq *tgbotapi.CallbackQuery, rest string) {
+	parts := strings.Split(rest, ":")
+	if len(parts) != 3 {
+		b.answerCallback(cq.ID, "")
+		return
+	}
+	tier := parts[0]
+	months, err := strconv.Atoi(parts[1])
+	if err != nil {
+		b.answerCallback(cq.ID, "")
+		return
+	}
+	method, ok := methodMap[parts[2]]
+	if !ok {
+		b.answerCallback(cq.ID, "")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	b.answerCallback(cq.ID, "")
+
+	user, err := b.userRepo.FindByTelegramID(ctx, cq.From.ID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.editText(cq, msgNoAccount)
+		return
+	}
+	if err != nil {
+		slog.Error("telegram bot", slog.String("action", "pay_find_user"), slog.Int64("telegram_id", cq.From.ID), slog.String("error", err.Error()))
+		b.editText(cq, msgPaymentErr)
+		return
+	}
+
+	result, err := b.paymentSvc.CreateOrder(ctx, user.ID, tier, method, months, b.cfg.SupportEmail, "127.0.0.1")
+	if err != nil {
+		slog.Error("telegram bot", slog.String("action", "create_order"), slog.String("user_id", user.ID), slog.String("tier", tier), slog.Int("months", months), slog.String("method", method), slog.String("error", err.Error()))
+		b.editText(cq, msgPaymentErr)
+		return
+	}
+
+	slog.Info("telegram bot", slog.String("action", "order_created"), slog.Int64("telegram_id", cq.From.ID), slog.String("user_id", user.ID), slog.String("order_id", result.OrderID), slog.Float64("amount_rub", result.AmountRUB))
+
+	text := fmt.Sprintf("▓ СЧЁТ СОЗДАН ▓\n\n%s · %d мес · %d ₽\n\n"+
+		"Нажми кнопку для оплаты.\n"+
+		"После оплаты подписка активируется автоматически.", tier, months, int(result.AmountRUB))
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text)
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("🔗 ПЕРЕЙТИ К ОПЛАТЕ", result.PaymentURL),
+		),
+	)
+	edit.ReplyMarkup = &kb
+	b.send(edit)
+}
+
+// ── Keyboards ────────────────────────────────────────────────────────────────
+
+func mainMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	kb := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnAccount)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnAndroid), tgbotapi.NewKeyboardButton(btnIOS)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnPC), tgbotapi.NewKeyboardButton(btnDevices)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBuy), tgbotapi.NewKeyboardButton(btnHelp)),
+	)
+	kb.ResizeKeyboard = true
+	return kb
+}
+
+func tierKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("CORE — 199₽/мес", "tyrax_tier:CORE"),
+			tgbotapi.NewInlineKeyboardButtonData("SHADOW — 349₽/мес", "tyrax_tier:SHADOW"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("DOMINION — 649₽/мес", "tyrax_tier:DOMINION"),
+		),
+	)
+}
+
+func periodKeyboard(tier string) tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("1 мес", "tyrax_period:"+tier+":1"),
+			tgbotapi.NewInlineKeyboardButtonData("3 мес  −10%", "tyrax_period:"+tier+":3"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("6 мес  −15%", "tyrax_period:"+tier+":6"),
+			tgbotapi.NewInlineKeyboardButtonData("12 мес  −20%", "tyrax_period:"+tier+":12"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("← Назад", "tyrax_back_tier"),
+		),
+	)
+}
+
+func paymentKeyboard(tier string, months int) tgbotapi.InlineKeyboardMarkup {
+	prefix := fmt.Sprintf("tyrax_pay:%s:%d:", tier, months)
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💳 Карта РФ", prefix+"card"),
+			tgbotapi.NewInlineKeyboardButtonData("📱 СБП", prefix+"sbp"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("₿ Криптовалюта", prefix+"crypto"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("← Назад", "tyrax_tier:"+tier),
+		),
+	)
+}
+
+var methodMap = map[string]string{
+	"card":   string(model.PaymentCardRF),
+	"sbp":    string(model.PaymentSBP),
+	"crypto": string(model.PaymentCrypto),
+}
+
+// ── Persistence helpers ──────────────────────────────────────────────────────
+
+// resolveUser returns the identity for a Telegram account, provisioning a
+// FREE-tier one on first contact.
+func (b *Bot) resolveUser(ctx context.Context, telegramID int64, username string) (*model.User, bool, error) {
+	user, err := b.userRepo.FindByTelegramID(ctx, telegramID)
+	if err == nil {
+		return user, false, nil
+	}
+	if !errors.Is(err, repository.ErrUserNotFound) {
+		return nil, false, err
+	}
+	user, err = b.userRepo.CreateFromTelegram(ctx, telegramID, username)
+	if err != nil {
+		return nil, false, err
+	}
+	return user, true, nil
+}
+
+func tokenPending(ctx context.Context, db *pgxpool.Pool, token string) (bool, error) {
+	var exists bool
+	err := db.QueryRow(ctx,
+		`SELECT EXISTS(
+		   SELECT 1 FROM telegram_auth_tokens
+		    WHERE token = $1 AND confirmed = false AND expires_at > NOW()
+		 )`, token).Scan(&exists)
+	return exists, err
+}
+
+func confirmToken(ctx context.Context, db *pgxpool.Pool, token, userID string) (bool, error) {
+	tag, err := db.Exec(ctx,
+		`UPDATE telegram_auth_tokens
+		    SET confirmed = true, user_id = $2
+		  WHERE token = $1 AND confirmed = false AND expires_at > NOW()`,
+		token, userID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+func parseTierMonths(rest string) (tier string, months int, ok bool) {
+	parts := strings.SplitN(rest, ":", 2)
+	if len(parts) != 2 {
+		return "", 0, false
+	}
+	m, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return "", 0, false
+	}
+	return parts[0], m, true
+}
+
+// ── Telegram I/O helpers ─────────────────────────────────────────────────────
+
+func (b *Bot) send(c tgbotapi.Chattable) {
+	if _, err := b.api.Send(c); err != nil {
+		slog.Error("telegram bot: send failed", slog.String("error", err.Error()))
+	}
+}
+
+func (b *Bot) sendText(chatID int64, text string) {
+	b.send(tgbotapi.NewMessage(chatID, text))
+}
+
+func (b *Bot) sendMainMenu(chatID int64, text string) {
+	m := tgbotapi.NewMessage(chatID, text)
+	m.ReplyMarkup = mainMenuKeyboard()
+	b.send(m)
+}
+
+func (b *Bot) editText(cq *tgbotapi.CallbackQuery, text string) {
+	b.send(tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text))
+}
+
+func (b *Bot) answerCallback(id, text string) {
+	if _, err := b.api.Request(tgbotapi.NewCallback(id, text)); err != nil {
+		slog.Error("telegram bot: answer callback failed", slog.String("error", err.Error()))
+	}
+}
+
+func (b *Bot) fail(chatID int64, action string, telegramID int64, userID string, err error) {
+	slog.Error("telegram bot",
+		slog.String("action", action),
+		slog.Int64("telegram_id", telegramID),
+		slog.String("user_id", userID),
+		slog.String("error", err.Error()),
+	)
+	b.sendText(chatID, msgGenericErr)
+}

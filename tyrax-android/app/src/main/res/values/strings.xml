@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">TYRAX</string>
+
+    <!-- Glyphs (non-textual UI markers) -->
+    <string name="glyph_back">&lt;</string>
+    <string name="glyph_remove">×</string>
+    <string name="value_empty">—</string>
+
+    <!-- Status -->
+    <string name="label_status">STATUS</string>
+    <string name="status_access_granted">ACCESS GRANTED</string>
+    <string name="status_outside_system">OUTSIDE SYSTEM</string>
+    <string name="status_breaching">BREACHING NETWORK…</string>
+    <string name="status_breaching_short">BREACHING…</string>
+    <string name="status_reconnecting">RECONNECTING…</string>
+    <string name="status_node_acquired">NODE ACQUIRED</string>
+    <string name="status_connection_failed">CONNECTION FAILED</string>
+    <string name="status_control_active">CONTROL ACTIVE</string>
+    <string name="status_no_restrictions">NO RESTRICTIONS</string>
+
+    <!-- Buttons -->
+    <string name="btn_enter">ENTER</string>
+    <string name="btn_disconnect">DISCONNECT</string>
+    <string name="btn_unlock">UNLOCK</string>
+    <string name="btn_test_access">TEST ACCESS</string>
+    <string name="btn_register">СОЗДАТЬ АККАУНТ</string>
+    <string name="btn_login">ВОЙТИ</string>
+    <string name="btn_retry">RETRY</string>
+    <string name="btn_confirm">CONFIRM</string>
+    <string name="btn_cancel">CANCEL</string>
+    <string name="btn_send">SEND</string>
+    <string name="btn_add_device">ADD THIS DEVICE</string>
+    <string name="btn_invite_account">INVITE ACCOUNT</string>
+    <string name="btn_exit_system">ВЫЙТИ</string>
+    <string name="btn_proceed_payment">ПЕРЕЙТИ К ОПЛАТЕ — %1$d ₽</string>
+
+    <!-- Navigation -->
+    <string name="nav_nodes">NODES</string>
+    <string name="nav_control">ТАРИФЫ</string>
+    <string name="nav_settings">НАСТРОЙКИ</string>
+
+    <!-- Main screen -->
+    <string name="label_node_status">NODE: %1$s · OPEN</string>
+    <string name="label_node_none">NODE: —</string>
+    <string name="label_ping_ms">%1$dms</string>
+    <string name="label_traffic">TRAFFIC: %1$s GB / %2$s GB</string>
+
+    <!-- Node statuses -->
+    <string name="node_open">OPEN</string>
+    <string name="node_monitored">MONITORED</string>
+    <string name="node_heavily_restricted">HEAVILY RESTRICTED</string>
+    <string name="status_scanning_nodes">SCANNING NODES…</string>
+    <string name="status_no_nodes">NO NODES AVAILABLE</string>
+
+    <!-- Subscription / tiers -->
+    <string name="tier_core">CORE</string>
+    <string name="tier_shadow">SHADOW</string>
+    <string name="tier_dominion">DOMINION</string>
+    <string name="label_current_tier">CURRENT: %1$s</string>
+    <string name="label_payment_method">МЕТОД ОПЛАТЫ</string>
+    <string name="label_months">%1$d МЕС</string>
+    <string name="label_months_discount">%1$d МЕС %2$s</string>
+    <string name="discount_3mo">-10%</string>
+    <string name="discount_6mo">-15%</string>
+    <string name="discount_12mo">-20%</string>
+    <string name="label_price_per_month">%1$d ₽ / МЕС</string>
+    <string name="label_price_total">%1$d ₽ / %2$d МЕС</string>
+    <string name="feature_item">· %1$s</string>
+    <string name="method_sbp">СБП</string>
+    <string name="method_card_rf">КАРТА РФ</string>
+    <string name="method_crypto">КРИПТА</string>
+
+    <!-- Subscription tier cards -->
+    <string name="sub_badge_current">ТЕКУЩИЙ ТАРИФ</string>
+    <string name="sub_btn_unlock">РАЗБЛОКИРОВАТЬ</string>
+    <string name="sub_price_from">от %1$d ₽/мес</string>
+    <string name="sub_features_core">2 УСТРОЙСТВА · БЕЗЛИМИТ · ВСЕ НОДЫ</string>
+    <string name="sub_features_shadow">5 УСТРОЙСТВ · ПРИОРИТЕТ · БЕЗЛИМИТ · ВСЕ НОДЫ</string>
+    <string name="sub_features_dominion">10 УСТРОЙСТВ · ПРИОРИТЕТ #1 · ПРИГЛАСИТЬ 3 АККАУНТА</string>
+
+    <!-- Payment screen -->
+    <string name="payment_title">ОПЛАТА</string>
+    <string name="payment_price">%1$d ₽</string>
+    <string name="payment_for_1">за 1 месяц</string>
+    <string name="payment_for_3">за 3 месяца · экономия %1$d ₽</string>
+    <string name="payment_for_6">за 6 месяцев · экономия %1$d ₽</string>
+    <string name="payment_for_12">за 12 месяцев · экономия %1$d ₽</string>
+    <string name="payment_method_card">Карта РФ</string>
+    <string name="payment_method_sbp">СБП</string>
+    <string name="payment_method_crypto">Крипто</string>
+    <string name="payment_glyph_card">💳</string>
+    <string name="payment_glyph_sbp">📱</string>
+    <string name="payment_glyph_crypto">₿</string>
+    <string name="payment_cta">ПЕРЕЙТИ К ОПЛАТЕ</string>
+    <string name="payment_auto_note">После оплаты подписка активируется автоматически</string>
+    <string name="payment_success_title">✓ ДОСТУП ОТКРЫТ</string>
+    <string name="payment_success_body">Тариф %1$s активирован</string>
+    <string name="payment_back_to_main">НА ГЛАВНУЮ</string>
+
+    <string-array name="features_core">
+        <item>2 УСТРОЙСТВА</item>
+        <item>БЕЗЛИМИТ</item>
+        <item>ВСЕ НОДЫ</item>
+    </string-array>
+    <string-array name="features_shadow">
+        <item>5 УСТРОЙСТВ</item>
+        <item>ПРИОРИТЕТ</item>
+        <item>ВСЕ НОДЫ</item>
+    </string-array>
+    <string-array name="features_dominion">
+        <item>10 УСТРОЙСТВ</item>
+        <item>ПРИОРИТЕТ #1</item>
+        <item>ПРИГЛАСИТЬ 3 АККАУНТА</item>
+        <item>ПОДДЕРЖКА</item>
+    </string-array>
+
+    <!-- Devices -->
+    <string name="label_my_devices">MY DEVICES</string>
+    <string name="label_device_count">%1$d/%2$d</string>
+    <string name="status_device_added">DEVICE ADDED</string>
+    <string name="label_invited_accounts">INVITED ACCOUNTS</string>
+    <string name="label_account_id">ACCOUNT ID</string>
+    <string name="dialog_invite_title">INVITE ACCOUNT</string>
+    <string name="dialog_remove_device_title">REMOVE DEVICE?</string>
+    <string name="dialog_remove_invite_title">REMOVE INVITE?</string>
+
+    <!-- Settings -->
+    <string name="label_subscription">SUBSCRIPTION</string>
+    <string name="label_devices">DEVICES</string>
+    <string name="dialog_exit_title">ВЫЙТИ?</string>
+    <string name="dialog_exit_body">ВЫ БУДЕТЕ ОТКЛЮЧЕНЫ И ВЫЙДЕТЕ ИЗ АККАУНТА</string>
+    <string name="settings_section_account">АККАУНТ</string>
+    <string name="settings_section_subscription">ПОДПИСКА</string>
+    <string name="settings_section_devices">УСТРОЙСТВА</string>
+    <string name="settings_label_email">Почта</string>
+    <string name="settings_label_tier">Текущий тариф</string>
+    <string name="settings_label_devices">Мои устройства</string>
+    <string name="settings_link_telegram">Привязать Telegram</string>
+    <string name="settings_telegram_linked">✓ Telegram привязан</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_system_alert">SYSTEM ALERT</string>
+    <string name="onboarding_slide2_title">МЫ ЭТО УБИРАЕМ</string>
+    <string name="onboarding_slide2_sub">С нами решаешь — ты.</string>
+    <string name="onboarding_slide3_title">БЕЗ\nРАЗРЕШЕНИЯ</string>
+    <string name="onboarding_get_access">ПОЛУЧИТЬ ДОСТУП</string>
+    <string name="onboarding_bot_step1_prefix">1. Открой</string>
+    <string name="onboarding_bot_step1_suffix">в Telegram</string>
+    <string name="onboarding_bot_step2">2. Нажми START — аккаунт создастся автоматически</string>
+    <string name="onboarding_bot_step3">3. Вернись сюда и войди</string>
+    <string-array name="onboarding_slide1_words">
+        <item>ОНИ РЕШАЮТ,</item>
+        <item>ЧТО ТЕБЕ</item>
+        <item>МОЖНО ВИДЕТЬ</item>
+    </string-array>
+
+    <!-- Auth -->
+    <string name="label_brand">TYRAX</string>
+    <string name="auth_enter_via_telegram">ВОЙТИ ЧЕРЕЗ TELEGRAM</string>
+    <string name="auth_enter_via_credentials">ENTER CREDENTIALS</string>
+    <string name="auth_label_login">Эл. почта</string>
+    <string name="auth_label_password">Пароль</string>
+    <string name="auth_label_confirm_password">Повтори пароль</string>
+    <string name="auth_have_account">Уже есть аккаунт? ВОЙТИ</string>
+    <string name="auth_no_account">Нет аккаунта? СОЗДАТЬ</string>
+    <string name="label_or">"  или  "</string>
+    <string name="bot_handle">@tyraxvpnbot</string>
+    <string name="auth_telegram_hint_prefix">Впервые здесь? Начни в</string>
+
+    <!-- Errors -->
+    <string name="error_node_unavailable">NODE UNAVAILABLE</string>
+    <string name="error_access_denied">ACCESS DENIED</string>
+    <string name="error_identity_not_found">IDENTITY NOT FOUND</string>
+    <string name="error_connection_failed">CONNECTION FAILED</string>
+    <string name="error_protocol_blocked">PROTOCOL BLOCKED. SWITCHING NODE…</string>
+    <string name="error_passwords_mismatch">ACCESS CODES DO NOT MATCH</string>
+
+    <!-- Error mapper (network failures) -->
+    <string name="error_access_denied_reenter">ACCESS DENIED. RE-ENTER.</string>
+    <string name="error_level_insufficient">LEVEL INSUFFICIENT.</string>
+    <string name="error_node_switching">NODE UNAVAILABLE. SWITCHING...</string>
+    <string name="error_connection_lost">CONNECTION LOST.</string>
+    <string name="error_signal_lost">SIGNAL LOST. RETRYING...</string>
+    <string name="error_system">SYSTEM ERROR. NODE OFFLINE.</string>
+</resources>

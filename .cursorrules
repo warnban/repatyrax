@@ -1,0 +1,146 @@
+# TYRAX — Cursor Rules
+# These rules apply to the entire monorepo.
+
+## PROJECT IDENTITY
+This is TYRAX — an access protocol disguised as a VPN app.
+Brand: aggressive, dominant, minimal. Sexual undertone without being explicit.
+Read TYRAX_CONTEXT.md before making any decisions.
+
+---
+
+## GENERAL RULES
+
+- Always read TYRAX_CONTEXT.md for brand vocabulary, screen flows, and architecture
+- Never use friendly or soft language in UI strings
+- Never use Material3 default color scheme — always use TYRAX palette
+- Prefer explicit, readable code over clever one-liners
+- Write comments in English
+- No TODO comments without a ticket/issue reference
+
+---
+
+## GO BACKEND RULES
+
+### Structure
+```
+tyrax-backend/
+├── cmd/server/main.go
+├── internal/
+│   ├── handler/       # HTTP handlers (Fiber)
+│   ├── service/       # Business logic
+│   ├── repository/    # DB queries (sqlc or pgx)
+│   ├── model/         # Domain models
+│   ├── middleware/     # Auth, logging, rate limit
+│   └── config/        # Config loading
+├── pkg/
+│   ├── jwt/           # JWT helpers
+│   ├── telegram/      # Telegram bot client
+│   └── vpnconfig/     # WireGuard / VLESS config generators
+├── migrations/        # SQL migrations
+└── docker-compose.yml
+```
+
+### Conventions
+- Use `fiber.Ctx` — never use `net/http` directly
+- All handlers return JSON: `{"status": "ok", "data": {...}}` or `{"status": "error", "message": "..."}`
+- Service layer has NO knowledge of HTTP — pure business logic
+- Repository layer has NO business logic — only DB queries
+- Use `errors.New()` with descriptive messages, wrap with `fmt.Errorf("context: %w", err)`
+- Config via env vars, loaded with `os.Getenv` or `viper`
+- All DB operations must have context with timeout: `ctx, cancel := context.WithTimeout(ctx, 5*time.Second)`
+- Use `pgx/v5` for PostgreSQL — not `database/sql`
+- JWT claims struct must include: `UserID`, `SubscriptionTier`, `ExpiresAt`
+
+### API Routes pattern
+```
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+GET    /api/v1/auth/telegram-init        # returns token for bot flow
+POST   /api/v1/auth/telegram-callback    # bot calls this
+GET    /api/v1/nodes                     # list available nodes
+GET    /api/v1/vpn/config                # get user's VPN config
+POST   /api/v1/vpn/connect               # log connection event
+POST   /api/v1/vpn/disconnect            # log disconnection
+GET    /api/v1/subscription              # get current plan
+POST   /api/v1/subscription/upgrade
+```
+
+### Error messages (stay on brand)
+- Use uppercase, cold tone
+- Example: `"NODE UNAVAILABLE"`, `"IDENTITY NOT FOUND"`, `"ACCESS DENIED"`, `"INVALID CREDENTIALS"`
+
+---
+
+## ANDROID (KOTLIN / COMPOSE) RULES
+
+### Architecture: MVVM + Clean Architecture
+```
+tyrax-android/
+└── app/src/main/java/com/tyrax/
+    ├── di/                    # Hilt modules
+    ├── domain/
+    │   ├── model/             # Pure Kotlin data classes
+    │   ├── repository/        # Interfaces only
+    │   └── usecase/           # One class per use case
+    ├── data/
+    │   ├── remote/            # Retrofit API, DTOs
+    │   ├── local/             # Room DB, DataStore
+    │   ├── repository/        # Implementations
+    │   └── vpn/               # VpnService, WireGuard, Xray engine
+    └── presentation/
+        ├── theme/             # TyraxTheme, colors, typography
+        ├── components/        # Reusable Compose components
+        └── screens/
+            ├── onboarding/
+            ├── auth/
+            ├── main/
+            ├── nodes/
+            └── subscription/
+```
+
+### Compose UI Rules
+- Background: `Color(0xFF000000)`
+- Primary text: `Color(0xFFFFFFFF)`
+- Accent / danger: `Color(0xFFFF1E1E)`
+- Font: use `FontWeight.Black` or `FontWeight.Bold` — never `Normal` for headings
+- All status text: UPPERCASE
+- Buttons: sharp corners (`RoundedCornerShape(0.dp)` or max 2.dp) — NO pill buttons
+- Animations: use `glitch` feel — fast flicker transitions, not smooth slides
+- NO `Scaffold` default top bars — custom minimal header or none
+- StatusBar: always transparent, icons white
+
+### ViewModel Rules
+- Expose `StateFlow<UiState>` — never `LiveData`
+- UiState is a sealed class with: `Loading`, `Success(data)`, `Error(message)`
+- ViewModels call UseCases — never repositories directly
+- Side effects via `Channel<UiEvent>` collected with `LaunchedEffect`
+
+### Naming
+- Screens: `MainScreen`, `OnboardingScreen`, `NodesScreen`
+- ViewModels: `MainViewModel`, `AuthViewModel`
+- Use cases: `ConnectToNodeUseCase`, `GetBestNodeUseCase`, `AuthWithTelegramUseCase`
+- Composables (components): `TyraxButton`, `NodeCard`, `StatusIndicator`, `GlitchText`
+
+### Strings
+- All user-facing strings in `res/values/strings.xml`
+- Use TYRAX vocabulary (see TYRAX_CONTEXT.md)
+- Keys use snake_case: `status_access_granted`, `btn_enter`, `label_node`
+
+### VPN Layer
+- Extend `android.net.VpnService`
+- Use `NetworkCallback` for Wi-Fi ↔ LTE handoff
+- WireGuard tunnel via `wireguard-android` library
+- Xray-core runs as local SOCKS5 proxy on `127.0.0.1:10808`
+- Split tunnel: route RU domains directly, all else via VPN
+- Auto-reconnect: monitor in coroutine with `delay(30_000)`, check latency, switch if degraded
+
+---
+
+## WHAT TO NEVER DO
+
+- Never use `#4CAF50` (green) or any pastel color anywhere
+- Never write "VPN" in UI — always "PROTOCOL" or "TUNNEL"
+- Never use `CircularProgressIndicator` default — create custom glitch loader
+- Never use `AlertDialog` default style — always custom dark dialog
+- Never put more than 3 elements on the main screen
+- Never apologize in error messages ("Sorry, something went wrong") — be cold and direct

@@ -1,0 +1,27 @@
+# ── Android ───────────────────────────────────────────────────────────────────
+*.iml
+.gradle/
+local.properties
+.idea/
+tyrax-android/app/build/
+tyrax-android/build/
+tyrax-android/.gradle/
+tyrax-android/captures/
+tyrax-android/.externalNativeBuild/
+tyrax-android/.cxx/
+tyrax-android/app/release/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ── Go Backend ────────────────────────────────────────────────────────────────
+tyrax-backend/bin/
+tyrax-backend/*.exe
+tyrax-backend/tyrax-backend
+tyrax-backend/.env
+
+# ── General ───────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log

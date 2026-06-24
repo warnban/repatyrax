@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tyrax
+      POSTGRES_USER: tyrax
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tyrax_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tyrax -d tyrax"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://tyrax:${POSTGRES_PASSWORD:-tyrax_dev}@postgres:5432/tyrax?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_URL: ${TELEGRAM_BOT_URL:-https://t.me/tyraxvpnbot}
+      FREEKASSA_SHOP_ID: ${FREEKASSA_SHOP_ID}
+      FREEKASSA_API_KEY: ${FREEKASSA_API_KEY}
+      FREEKASSA_SECRET_WORD_2: ${FREEKASSA_SECRET_WORD_2}
+      CRYPTO_PAY_TOKEN: ${CRYPTO_PAY_TOKEN}
+      PORT: 8080
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  postgres_data:

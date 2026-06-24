@@ -1,0 +1,213 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/tyrax/tyrax-backend/internal/model"
+)
+
+const userQueryTimeout = 5 * time.Second
+
+// userColumns is the full column set scanned into model.User, in scan order.
+const userColumns = "id, email, password_hash, telegram_id, subscription_tier, subscription_end, created_at"
+
+var (
+	ErrUserNotFound = errors.New("IDENTITY NOT FOUND")
+	ErrEmailTaken   = errors.New("IDENTITY ALREADY EXISTS")
+)
+
+type userRepository struct {
+	db *pgxpool.Pool
+}
+
+func NewUserRepository(db *pgxpool.Pool) UserRepository {
+	return &userRepository{db: db}
+}
+
+func (r *userRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := "SELECT " + userColumns + " FROM users WHERE id = $1"
+	u, err := scanUser(r.db.QueryRow(ctx, query, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find user by id: %w", err)
+	}
+	return u, nil
+}
+
+func (r *userRepository) ActivateSubscription(ctx context.Context, userID, tier string, endsAt time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET subscription_tier = $1, subscription_end = $2 WHERE id = $3",
+		tier, endsAt, userID)
+	if err != nil {
+		return fmt.Errorf("activate subscription: %w", err)
+	}
+	return nil
+}
+
+func (r *userRepository) SetParentSubscription(ctx context.Context, inviteeID string, ownerID *string) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET parent_subscription_id = $1 WHERE id = $2",
+		ownerID, inviteeID)
+	if err != nil {
+		return fmt.Errorf("set parent subscription: %w", err)
+	}
+	return nil
+}
+
+func (r *userRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := "SELECT " + userColumns + " FROM users WHERE email = $1"
+	u, err := scanUser(r.db.QueryRow(ctx, query, email))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find user by email: %w", err)
+	}
+	return u, nil
+}
+
+func (r *userRepository) FindByTelegramID(ctx context.Context, telegramID int64) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := "SELECT " + userColumns + " FROM users WHERE telegram_id = $1"
+	u, err := scanUser(r.db.QueryRow(ctx, query, telegramID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find user by telegram id: %w", err)
+	}
+	return u, nil
+}
+
+// CreateFromTelegram provisions a FREE-tier identity bound to a Telegram account.
+// On a unique-key race (two /start commands at once) it falls back to a lookup.
+func (r *userRepository) CreateFromTelegram(ctx context.Context, telegramID int64, username string) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := "INSERT INTO users (telegram_id, username, subscription_tier) " +
+		"VALUES ($1, $2, 'FREE') RETURNING " + userColumns
+	u, err := scanUser(r.db.QueryRow(ctx, query, telegramID, username))
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return r.FindByTelegramID(ctx, telegramID)
+		}
+		return nil, fmt.Errorf("create user from telegram: %w", err)
+	}
+	return u, nil
+}
+
+// Create inserts a new identity. The database generates the UUID and stamps
+// created_at; the inserted row is returned fully populated.
+// A duplicate email surfaces as ErrEmailTaken (unique_violation, SQLSTATE 23505).
+func (r *userRepository) Create(ctx context.Context, email, passwordHash, tier string) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := "INSERT INTO users (email, password_hash, subscription_tier) " +
+		"VALUES ($1, $2, $3) RETURNING " + userColumns
+	u, err := scanUser(r.db.QueryRow(ctx, query, email, passwordHash, tier))
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrEmailTaken
+		}
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+	return u, nil
+}
+
+func (r *userRepository) CreateTelegramAuthToken(ctx context.Context, token string, expiresAt time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"INSERT INTO telegram_auth_tokens (token, expires_at) VALUES ($1, $2)",
+		token, expiresAt)
+	if err != nil {
+		return fmt.Errorf("create telegram auth token: %w", err)
+	}
+	return nil
+}
+
+// ConsumeConfirmedTelegramToken returns the bound user_id for a token that the
+// bot has confirmed and that has not expired, marking it used to prevent replay.
+// found is false (with a nil error) when the token is still pending/expired.
+func (r *userRepository) ConsumeConfirmedTelegramToken(ctx context.Context, token string) (string, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := `UPDATE telegram_auth_tokens
+	             SET used_at = NOW()
+	           WHERE token = $1
+	             AND confirmed = TRUE
+	             AND used_at IS NULL
+	             AND expires_at > NOW()
+	             AND user_id IS NOT NULL
+	       RETURNING user_id`
+
+	var userID string
+	err := r.db.QueryRow(ctx, query, token).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("consume telegram token: %w", err)
+	}
+	return userID, true, nil
+}
+
+// scanUser reads a users row in userColumns order.
+func scanUser(row rowScanner) (*model.User, error) {
+	var u model.User
+	// pgx/v5 cannot scan the subscription_tier enum directly into a named
+	// string type, so read it into a plain string and cast afterwards.
+	var tier string
+	// email and password_hash are nullable (Telegram-provisioned identities
+	// have neither), so scan them into *string and dereference when present.
+	var email *string
+	var passwordHash *string
+	if err := row.Scan(
+		&u.ID,
+		&email,
+		&passwordHash,
+		&u.TelegramID,
+		&tier,
+		&u.SubscriptionEnd,
+		&u.CreatedAt,
+	); err != nil {
+		return nil, err
+	}
+	u.SubscriptionTier = model.SubscriptionTier(tier)
+	if email != nil {
+		u.Email = *email
+	}
+	if passwordHash != nil {
+		u.PasswordHash = *passwordHash
+	}
+	return &u, nil
+}
