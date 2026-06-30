@@ -1,4 +1,7 @@
 # ── Android ───────────────────────────────────────────────────────────────────
+desktop.ini
+tyrax-android/app/libs/libv2ray_extracted/
+tyrax-android/app/libs/libv2ray.zip
 *.iml
 .gradle/
 local.properties

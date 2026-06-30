@@ -22,6 +22,44 @@ type AddDeviceRequest struct {
 	Name string `json:"name"`
 }
 
+type ConnectRequest struct {
+	Name     string `json:"name"`
+	Codename string `json:"codename"`
+}
+
+func (h *VPNHandler) Connect(c *fiber.Ctx) error {
+	userID := extractUserID(c)
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"status": "error", "message": "ACCESS DENIED"})
+	}
+
+	var req ConnectRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID REQUEST"})
+	}
+
+	if req.Name == "" || req.Codename == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID REQUEST"})
+	}
+
+	cfg, err := h.vpnService.Connect(c.Context(), userID, req.Name, req.Codename)
+	if err != nil {
+		if errors.Is(err, service.ErrDeviceLimitReached) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "error", "message": "DEVICE LIMIT REACHED"})
+		}
+		if errors.Is(err, service.ErrNodeUnavailable) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "error", "message": "NODE UNAVAILABLE"})
+		}
+		slog.Error("connect failed", "err", err.Error())
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": "ok",
+		"data":   cfg,
+	})
+}
+
 func (h *VPNHandler) AddDevice(c *fiber.Ctx) error {
 	userID := extractUserID(c)
 	if userID == "" {

@@ -19,7 +19,7 @@ const nodeQueryTimeout = 5 * time.Second
 var ErrNodeNotFound = errors.New("NODE UNAVAILABLE")
 
 // nodeColumns lists the columns selected into model.Node, in scan order.
-const nodeColumns = "id, codename, country, host, port, protocol, status, ping_ms, public_key, min_tier, reality_public_key, reality_short_id, reality_sni"
+const nodeColumns = "id, codename, country, host, port, protocol, status, ping_ms, public_key, min_tier, reality_public_key, reality_short_id, reality_sni, reality_dest, network, flow, xhttp_path, xhttp_mode, x_padding_bytes, fingerprint, panel_url, panel_user, panel_pass, panel_inbound_id, security"
 
 type nodeRepository struct {
 	db *pgxpool.Pool
@@ -71,6 +71,22 @@ func (r *nodeRepository) FindByID(ctx context.Context, id string) (*model.Node, 
 	return n, nil
 }
 
+func (r *nodeRepository) GetByCodename(ctx context.Context, codename string) (*model.Node, error) {
+	ctx, cancel := context.WithTimeout(ctx, nodeQueryTimeout)
+	defer cancel()
+
+	query := "SELECT " + nodeColumns + " FROM nodes WHERE codename = $1 LIMIT 1"
+
+	n, err := scanNode(r.db.QueryRow(ctx, query, codename))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNodeNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get node by codename: %w", err)
+	}
+	return n, nil
+}
+
 func (r *nodeRepository) UpdatePing(ctx context.Context, nodeID string, pingMS int) error {
 	ctx, cancel := context.WithTimeout(ctx, nodeQueryTimeout)
 	defer cancel()
@@ -118,6 +134,13 @@ func scanNode(row rowScanner) (*model.Node, error) {
 	var realityPublicKey *string
 	var realityShortID *string
 	var realitySNI *string
+	var realityDest *string
+	var network *string
+	var flow *string
+	var xhttpPath *string
+	var xhttpMode *string
+	var xPaddingBytes *string
+	var fingerprint *string
 	if err := row.Scan(
 		&n.ID,
 		&n.Codename,
@@ -132,6 +155,18 @@ func scanNode(row rowScanner) (*model.Node, error) {
 		&realityPublicKey,
 		&realityShortID,
 		&realitySNI,
+		&realityDest,
+		&network,
+		&flow,
+		&xhttpPath,
+		&xhttpMode,
+		&xPaddingBytes,
+		&fingerprint,
+		&n.PanelURL,
+		&n.PanelUser,
+		&n.PanelPass,
+		&n.PanelInboundID,
+		&n.Security,
 	); err != nil {
 		return nil, err
 	}
@@ -148,6 +183,27 @@ func scanNode(row rowScanner) (*model.Node, error) {
 	}
 	if realitySNI != nil {
 		n.RealitySNI = *realitySNI
+	}
+	if realityDest != nil {
+		n.RealityDest = *realityDest
+	}
+	if network != nil {
+		n.Network = *network
+	}
+	if flow != nil {
+		n.Flow = *flow
+	}
+	if xhttpPath != nil {
+		n.XhttpPath = *xhttpPath
+	}
+	if xhttpMode != nil {
+		n.XhttpMode = *xhttpMode
+	}
+	if xPaddingBytes != nil {
+		n.XPaddingBytes = *xPaddingBytes
+	}
+	if fingerprint != nil {
+		n.Fingerprint = *fingerprint
 	}
 	return &n, nil
 }

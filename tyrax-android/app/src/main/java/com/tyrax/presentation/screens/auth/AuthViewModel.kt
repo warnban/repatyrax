@@ -8,6 +8,7 @@ import com.tyrax.domain.repository.AuthRepository
 import com.tyrax.domain.usecase.LoginUseCase
 import com.tyrax.domain.usecase.RegisterUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +41,8 @@ class AuthViewModel @Inject constructor(
 
     private val _events = Channel<AuthUiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    private var telegramPollJob: Job? = null
 
     fun login(email: String, password: String) {
         if (!validateInputs(email, password)) return
@@ -87,23 +90,46 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // Polls every 2 seconds for up to 30 seconds after the Telegram bot flow starts.
+    /**
+     * Polls /auth/telegram-status until the bot confirms the user.
+     *
+     * Rate-limit aware: the endpoint allows 10 req/min. We poll every 8s (7.5/min)
+     * and, after 3 consecutive HTTP 429s, back off to 15s. A non-429 outcome resets
+     * to the base interval. Polling continues for a full 5-minute budget — long
+     * enough for the user to open Telegram, /start the bot, and return.
+     */
     private fun pollTelegramStatus(initToken: String) {
-        viewModelScope.launch {
-            val maxAttempts = 15
-            repeat(maxAttempts) { attempt ->
-                delay(2_000)
-                authRepository.pollTelegramStatus(initToken)
-                    .onSuccess { authData ->
-                        authRepository.saveToken(authData.token)
-                        _uiState.value = AuthUiState.Success(authData.token)
-                        _events.send(AuthUiEvent.NavigateToMain)
-                        return@launch
-                    }
-                if (attempt == maxAttempts - 1) {
-                    _uiState.value = AuthUiState.Error("CONNECTION FAILED. RETRY.")
+        telegramPollJob?.cancel()
+        telegramPollJob = viewModelScope.launch {
+            val totalBudgetMs = 5 * 60 * 1_000L
+            val baseIntervalMs = 8_000L
+            val backoffIntervalMs = 15_000L
+            val backoffAfter = 3
+
+            val startedAt = System.currentTimeMillis()
+            var consecutive429 = 0
+            var intervalMs = baseIntervalMs
+
+            while (System.currentTimeMillis() - startedAt < totalBudgetMs) {
+                delay(intervalMs)
+                val result = authRepository.pollTelegramStatus(initToken)
+                result.onSuccess { authData ->
+                    authRepository.saveToken(authData.token)
+                    _uiState.value = AuthUiState.Success(authData.token)
+                    _events.send(AuthUiEvent.NavigateToMain)
+                    return@launch
+                }
+                // Still waiting (404/null) or throttled (429). Adjust cadence.
+                val message = result.exceptionOrNull()?.message.orEmpty()
+                if (message.contains("429") || message.contains("TOO MANY", ignoreCase = true)) {
+                    consecutive429++
+                    if (consecutive429 >= backoffAfter) intervalMs = backoffIntervalMs
+                } else {
+                    consecutive429 = 0
+                    intervalMs = baseIntervalMs
                 }
             }
+            _uiState.value = AuthUiState.Error("CONNECTION FAILED. RETRY.")
         }
     }
 
@@ -119,5 +145,10 @@ class AuthViewModel @Inject constructor(
             return false
         }
         return true
+    }
+
+    override fun onCleared() {
+        telegramPollJob?.cancel()
+        super.onCleared()
     }
 }

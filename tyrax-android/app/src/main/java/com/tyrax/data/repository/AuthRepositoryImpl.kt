@@ -70,6 +70,7 @@ private fun com.tyrax.data.remote.AuthDataDto.toAuthData() = AuthData(
 private fun <T> Result<T>.mapApiError(): Result<T> = onFailure { e ->
     val message = when {
         e.message?.contains("401") == true -> "INVALID CREDENTIALS"
+        e.message?.contains("409") == true -> "IDENTITY ALREADY EXISTS"
         e.message?.contains("Unable to resolve") == true ||
         e.message?.contains("failed to connect") == true -> "CONNECTION FAILED. RETRY."
         else -> e.message ?: "SYSTEM ERROR. NODE OFFLINE."

@@ -39,6 +39,32 @@ type Node struct {
 	RealityPublicKey string `db:"reality_public_key" json:"-"`
 	RealityShortID   string `db:"reality_short_id" json:"-"`
 	RealitySNI       string `db:"reality_sni" json:"reality_sni,omitempty"`
+	// RealityDest is the masquerade target ("host:443") the node steals its TLS
+	// cert from. Server-side (3x-ui) concept; kept here for ops parity, not used
+	// in the generated client config.
+	RealityDest string `db:"reality_dest" json:"-"`
+	// Security selects the stream security: "reality" (direct, steal-from-self)
+	// or "tls" (real TLS on a CDN-proxied domain — hides the origin IP).
+	Security string `db:"security" json:"-"`
+	// Transport / anti-DPI parameters (RU 2026). Network selects the Xray
+	// stream transport: "tcp" (legacy) or "xhttp" (default, behavioural-resistant).
+	Network string `db:"network" json:"-"`
+	// Flow is the VLESS user flow: "" or "xtls-rprx-vision". Vision over XHTTP
+	// requires XhttpMode == "stream-one".
+	Flow string `db:"flow" json:"-"`
+	// XHTTP transport tuning (used only when Network == "xhttp").
+	XhttpPath     string `db:"xhttp_path" json:"-"`
+	XhttpMode     string `db:"xhttp_mode" json:"-"`     // auto | packet-up | stream-up | stream-one
+	XPaddingBytes string `db:"x_padding_bytes" json:"-"` // e.g. "100-1000"
+	// Fingerprint is the uTLS ClientHello to mimic (default "chrome").
+	Fingerprint string `db:"fingerprint" json:"-"`
+	// Panel* are the node's 3x-ui panel credentials used by the backend to
+	// register/remove per-device VLESS UUIDs via the panel API. Secrets — never
+	// exposed in JSON. Empty PanelURL means "no sync" (manual / shared-UUID node).
+	PanelURL       string `db:"panel_url" json:"-"`
+	PanelUser      string `db:"panel_user" json:"-"`
+	PanelPass      string `db:"panel_pass" json:"-"`
+	PanelInboundID int    `db:"panel_inbound_id" json:"-"`
 }
 
 type NodeStatus string

@@ -20,6 +20,12 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Device is arm64-v8a; shipping only this ABI keeps the APK small enough
+        // to survive a flaky USB install (the multi-ABI debug APK was ~174 MB).
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -84,6 +90,12 @@ dependencies {
     // WireGuard tunnel (config parsing + GoBackend data plane)
     implementation(libs.wireguard.tunnel)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    // Xray-core engine (VLESS + Reality). Drop libv2ray.aar (+ optional
+    // libv2ray-sources.jar) into app/libs/; the tun2socks .so goes in
+    // app/src/main/jniLibs/<abi>/libtun2socks.so. Until the AAR is present,
+    // TyraxXrayVpnService will not compile (unresolved libv2ray symbols).
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
 
     // CustomTabsIntent for payment URLs
     implementation(libs.androidx.browser)

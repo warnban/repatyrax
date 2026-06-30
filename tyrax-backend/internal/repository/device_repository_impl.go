@@ -31,9 +31,9 @@ func (r *deviceRepository) Create(ctx context.Context, device *model.Device) err
 	query := `
 		INSERT INTO devices (user_id, name, public_key, client_ip)
 		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at
+		RETURNING id, created_at, vless_uuid
 	`
-	err := r.db.QueryRow(ctx, query, device.UserID, device.Name, device.PublicKey, device.ClientIP).Scan(&device.ID, &device.CreatedAt)
+	err := r.db.QueryRow(ctx, query, device.UserID, device.Name, device.PublicKey, device.ClientIP).Scan(&device.ID, &device.CreatedAt, &device.VlessUUID)
 	if err != nil {
 		return fmt.Errorf("create device: %w", err)
 	}
@@ -83,7 +83,7 @@ func (r *deviceRepository) GetByUserID(ctx context.Context, userID string) ([]mo
 	defer cancel()
 
 	rows, err := r.db.Query(ctx,
-		"SELECT id, user_id, name, public_key, client_ip, created_at FROM devices WHERE user_id = $1 ORDER BY created_at DESC",
+		"SELECT id, user_id, name, public_key, client_ip, vless_uuid, created_at FROM devices WHERE user_id = $1 ORDER BY created_at DESC",
 		userID)
 	if err != nil {
 		return nil, fmt.Errorf("list devices: %w", err)
@@ -93,7 +93,7 @@ func (r *deviceRepository) GetByUserID(ctx context.Context, userID string) ([]mo
 	devices := make([]model.Device, 0)
 	for rows.Next() {
 		var d model.Device
-		if err := rows.Scan(&d.ID, &d.UserID, &d.Name, &d.PublicKey, &d.ClientIP, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.UserID, &d.Name, &d.PublicKey, &d.ClientIP, &d.VlessUUID, &d.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan device: %w", err)
 		}
 		devices = append(devices, d)
@@ -108,9 +108,9 @@ func (r *deviceRepository) FindByPublicKey(ctx context.Context, publicKey string
 	ctx, cancel := context.WithTimeout(ctx, deviceQueryTimeout)
 	defer cancel()
 
-	query := "SELECT id, user_id, name, public_key, client_ip, created_at FROM devices WHERE public_key = $1"
+	query := "SELECT id, user_id, name, public_key, client_ip, vless_uuid, created_at FROM devices WHERE public_key = $1"
 	var d model.Device
-	err := r.db.QueryRow(ctx, query, publicKey).Scan(&d.ID, &d.UserID, &d.Name, &d.PublicKey, &d.ClientIP, &d.CreatedAt)
+	err := r.db.QueryRow(ctx, query, publicKey).Scan(&d.ID, &d.UserID, &d.Name, &d.PublicKey, &d.ClientIP, &d.VlessUUID, &d.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrDeviceNotFound
 	}
@@ -124,9 +124,9 @@ func (r *deviceRepository) FindByUserAndName(ctx context.Context, userID, name s
 	ctx, cancel := context.WithTimeout(ctx, deviceQueryTimeout)
 	defer cancel()
 
-	query := "SELECT id, user_id, name, public_key, client_ip, created_at FROM devices WHERE user_id = $1 AND name = $2"
+	query := "SELECT id, user_id, name, public_key, client_ip, vless_uuid, created_at FROM devices WHERE user_id = $1 AND name = $2"
 	var d model.Device
-	err := r.db.QueryRow(ctx, query, userID, name).Scan(&d.ID, &d.UserID, &d.Name, &d.PublicKey, &d.ClientIP, &d.CreatedAt)
+	err := r.db.QueryRow(ctx, query, userID, name).Scan(&d.ID, &d.UserID, &d.Name, &d.PublicKey, &d.ClientIP, &d.VlessUUID, &d.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrDeviceNotFound
 	}

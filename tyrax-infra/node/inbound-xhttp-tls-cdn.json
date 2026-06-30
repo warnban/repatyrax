@@ -1,0 +1,44 @@
+{
+  "_comment": "TYRAX CDN node inbound — VLESS + XHTTP + TLS, fronted by Cloudflare (Profile A-CDN). Reality is NOT used here (it can't traverse a CDN). The origin presents a Cloudflare Origin Certificate; Cloudflare (orange cloud, SSL mode Full(strict)) proxies clients to it and HIDES the origin IP. Replace cdn.tyrax.app with your proxied domain and the cert paths with your Origin Certificate. 'clients' starts with one bootstrap client; the TYRAX backend adds per-device UUIDs via the 3x-ui API. Keep path/host/mode identical to the DB nodes row and to pkg/vpnconfig/vless.go output.",
+  "listen": "",
+  "port": 443,
+  "protocol": "vless",
+  "settings": {
+    "clients": [
+      {
+        "id": "<BOOTSTRAP_UUID_GENERATE_IN_PANEL>",
+        "flow": "",
+        "email": "tyrax-bootstrap"
+      }
+    ],
+    "decryption": "none",
+    "fallbacks": []
+  },
+  "streamSettings": {
+    "network": "xhttp",
+    "security": "tls",
+    "tlsSettings": {
+      "serverName": "cdn.tyrax.app",
+      "minVersion": "1.2",
+      "alpn": ["h2", "http/1.1"],
+      "certificates": [
+        {
+          "certificateFile": "/root/cert/cdn.tyrax.app.crt",
+          "keyFile": "/root/cert/cdn.tyrax.app.key"
+        }
+      ]
+    },
+    "xhttpSettings": {
+      "path": "/api/v1/data",
+      "host": "cdn.tyrax.app",
+      "mode": "packet-up",
+      "extra": {
+        "xPaddingBytes": "100-1000"
+      }
+    }
+  },
+  "sniffing": {
+    "enabled": true,
+    "destOverride": ["http", "tls", "quic"]
+  }
+}

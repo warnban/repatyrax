@@ -4,11 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/tyrax/tyrax-backend/internal/model"
 	"github.com/tyrax/tyrax-backend/internal/repository"
 	"github.com/tyrax/tyrax-backend/pkg/vpnconfig"
 )
+
+// PanelSyncer registers/removes per-device VLESS UUIDs on a node's 3x-ui inbound
+// so the node's Xray authenticates the same UUID the backend hands the client.
+// Implemented by pkg/threexui.Syncer. A node without panel credentials is a
+// no-op, so WireGuard and manually-managed nodes are unaffected.
+type PanelSyncer interface {
+	AddClient(ctx context.Context, node model.Node, clientUUID, email string) error
+	DelClient(ctx context.Context, node model.Node, clientUUID string) error
+}
 
 var (
 	ErrDeviceLimitReached = errors.New("DEVICE LIMIT REACHED")
@@ -16,10 +26,34 @@ var (
 )
 
 type DeviceConfig struct {
-	DeviceID      string       `json:"device_id"`
-	WireGuardConf string       `json:"wireguard_conf,omitempty"`
-	VlessConf     string       `json:"vless_conf,omitempty"`
-	Nodes         []model.Node `json:"nodes"`
+	DeviceID      string `json:"device_id"`
+	Protocol      string `json:"protocol"` // "wireguard" | "vless"
+	WireGuardConf string `json:"wireguard_conf,omitempty"`
+	VlessConf     string `json:"vless_conf,omitempty"` // full Xray JSON (legacy / convenience)
+
+	// Structured VLESS + Reality parameters for the Android Xray engine.
+	// Populated only when Protocol == "vless"; the client builds its own Xray
+	// JSON from these so it can inject a local SOCKS inbound + tun2socks bridge.
+	// No omitempty — empty string must reach the client so it can distinguish
+	// "field absent" from "field present but empty" (e.g. RealityShortID == "").
+	UUID             string `json:"uuid"`
+	NodeHost         string `json:"node_host"`
+	NodePort         int    `json:"node_port"`
+	RealityPublicKey string `json:"reality_public_key"`
+	RealitySNI       string `json:"reality_sni"`
+	RealityShortID   string `json:"reality_short_id"`
+
+	// Transport / anti-DPI parameters (RU 2026). Empty string must reach the
+	// client so it can distinguish "field absent" from "present but empty".
+	Security      string `json:"security"`
+	Network       string `json:"network"`
+	Flow          string `json:"flow"`
+	XhttpPath     string `json:"xhttp_path"`
+	XhttpMode     string `json:"xhttp_mode"`
+	XPaddingBytes string `json:"x_padding_bytes"`
+	Fingerprint   string `json:"fingerprint"`
+
+	Nodes []model.Node `json:"nodes"`
 }
 
 type VPNConfig struct {
@@ -37,6 +71,7 @@ type NodeResponse struct {
 
 type VPNService interface {
 	AddDevice(ctx context.Context, userID, deviceName string) (*DeviceConfig, error)
+	Connect(ctx context.Context, userID, deviceName, codename string) (*VPNConfig, error)
 	GetConfig(ctx context.Context, userID, devicePublicKey string) (*VPNConfig, error)
 	GetNodes(ctx context.Context) ([]NodeResponse, error)
 	ListDevices(ctx context.Context, userID string) ([]model.Device, error)
@@ -48,13 +83,15 @@ type vpnService struct {
 	nodeRepo   repository.NodeRepository
 	deviceRepo repository.DeviceRepository
 	userRepo   repository.UserRepository
+	panel      PanelSyncer
 }
 
-func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository) VPNService {
+func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, panel PanelSyncer) VPNService {
 	return &vpnService{
 		nodeRepo:   nodeRepo,
 		deviceRepo: deviceRepo,
 		userRepo:   userRepo,
+		panel:      panel,
 	}
 }
 
@@ -152,18 +189,118 @@ func (s *vpnService) AddDevice(ctx context.Context, userID, deviceName string) (
 		return nil, fmt.Errorf("list nodes: %w", err)
 	}
 
-	var wgConf, vlessConf string
-	if bestNode.Protocol == "wireguard" {
-		wgConf = vpnconfig.GenerateClientConfig(*bestNode, privKey, pubKey, bestNode.PublicKey, device.ClientIP)
-	} else if bestNode.Protocol == "vless" {
-		vlessConf = vpnconfig.GenerateVlessConfig(*bestNode, userID)
+	dc := &DeviceConfig{
+		DeviceID: device.ID,
+		Protocol: bestNode.Protocol,
+		Nodes:    nodes,
 	}
 
-	return &DeviceConfig{
-		DeviceID:      device.ID,
-		WireGuardConf: wgConf,
-		VlessConf:     vlessConf,
-		Nodes:         nodes,
+	switch bestNode.Protocol {
+	case "wireguard":
+		dc.WireGuardConf = vpnconfig.GenerateClientConfig(*bestNode, privKey, pubKey, bestNode.PublicKey, device.ClientIP)
+	case "vless":
+		dc.VlessConf = vpnconfig.GenerateVlessConfig(*bestNode, device.VlessUUID)
+		dc.UUID = device.VlessUUID
+		dc.NodeHost = bestNode.Host
+		dc.NodePort = bestNode.Port
+		dc.RealityPublicKey = bestNode.RealityPublicKey
+		dc.RealitySNI = bestNode.RealitySNI
+		dc.RealityShortID = bestNode.RealityShortID
+		dc.Security = bestNode.Security
+		dc.Network = bestNode.Network
+		dc.Flow = bestNode.Flow
+		dc.XhttpPath = bestNode.XhttpPath
+		dc.XhttpMode = bestNode.XhttpMode
+		dc.XPaddingBytes = bestNode.XPaddingBytes
+		dc.Fingerprint = bestNode.Fingerprint
+
+		// Register this device's UUID on the node's inbound. Best-effort: a
+		// failure here is retried on the next Connect, so device creation still
+		// succeeds (and nodes without panel creds are a no-op).
+		if err := s.panel.AddClient(ctx, *bestNode, device.VlessUUID, device.ID); err != nil {
+			slog.Warn("panel addClient (add device)", "node", bestNode.Codename, "device", device.ID, "err", err.Error())
+		}
+	}
+
+	return dc, nil
+}
+
+func (s *vpnService) Connect(ctx context.Context, userID, deviceName, codename string) (*VPNConfig, error) {
+	node, err := s.nodeRepo.GetByCodename(ctx, codename)
+	if err != nil {
+		if errors.Is(err, repository.ErrNodeNotFound) {
+			return nil, ErrNodeUnavailable
+		}
+		return nil, fmt.Errorf("get node: %w", err)
+	}
+	if node.Status != model.NodeOpen {
+		return nil, ErrNodeUnavailable
+	}
+
+	device, err := s.deviceRepo.FindByUserAndName(ctx, userID, deviceName)
+	if err != nil && !errors.Is(err, repository.ErrDeviceNotFound) {
+		return nil, fmt.Errorf("find device: %w", err)
+	}
+
+	if device == nil {
+		user, err := s.userRepo.FindByID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("find user: %w", err)
+		}
+
+		count, err := s.deviceRepo.CountByUser(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("count devices: %w", err)
+		}
+		if count >= DeviceLimit(user.SubscriptionTier) {
+			return nil, ErrDeviceLimitReached
+		}
+
+		privKey, pubKey, err := vpnconfig.GenerateKeypair()
+		if err != nil {
+			return nil, fmt.Errorf("generate keypair: %w", err)
+		}
+
+		existingIPs, _ := s.deviceRepo.GetAllClientIPs(ctx)
+		clientIP := allocateClientIP(existingIPs)
+
+		device = &model.Device{
+			UserID:    userID,
+			Name:      deviceName,
+			PublicKey: pubKey,
+			ClientIP:  clientIP,
+		}
+
+		if err := s.deviceRepo.Create(ctx, device); err != nil {
+			return nil, fmt.Errorf("create device: %w", err)
+		}
+
+		if node.Protocol == "wireguard" {
+			conf := vpnconfig.GenerateClientConfig(*node, privKey, pubKey, node.PublicKey, device.ClientIP)
+			return &VPNConfig{Protocol: node.Protocol, Config: conf}, nil
+		}
+	}
+
+	var config string
+	switch node.Protocol {
+	case "wireguard":
+		return nil, fmt.Errorf("wireguard reconnect requires device provisioning")
+	case "vless":
+		// The device must be registered on THIS node's inbound or Xray will
+		// reject it (Reality serves the decoy site instead). Idempotent; a
+		// node without panel creds is a no-op (manual / shared-UUID node).
+		if err := s.panel.AddClient(ctx, *node, device.VlessUUID, device.ID); err != nil {
+			slog.Error("panel addClient (connect)", "node", node.Codename, "device", device.ID, "err", err.Error())
+			return nil, ErrNodeUnavailable
+		}
+		config = vpnconfig.GenerateVlessConfig(*node, device.VlessUUID)
+	default:
+		return nil, fmt.Errorf("unsupported protocol: %s", node.Protocol)
+	}
+
+	return &VPNConfig{
+		Protocol: node.Protocol,
+		Config:   config,
 	}, nil
 }
 
@@ -195,7 +332,10 @@ func (s *vpnService) GetConfig(ctx context.Context, userID, devicePublicKey stri
 		// For now, we'll just return a skeleton since we only have their public key.
 		conf = "[Interface]\n# PrivateKey must be injected by client\n"
 	} else if bestNode.Protocol == "vless" {
-		conf = vpnconfig.GenerateVlessConfig(*bestNode, userID)
+		if err := s.panel.AddClient(ctx, *bestNode, device.VlessUUID, device.ID); err != nil {
+			slog.Warn("panel addClient (get config)", "node", bestNode.Codename, "device", device.ID, "err", err.Error())
+		}
+		conf = vpnconfig.GenerateVlessConfig(*bestNode, device.VlessUUID)
 	}
 
 	return &VPNConfig{
@@ -228,6 +368,29 @@ func (s *vpnService) ListDevices(ctx context.Context, userID string) ([]model.De
 }
 
 func (s *vpnService) DeleteDevice(ctx context.Context, deviceID, userID string) error {
+	// Remove the device's VLESS UUID from every vless node's inbound before
+	// deleting it locally. Best-effort: panel errors must not block deletion.
+	if devices, err := s.deviceRepo.GetByUserID(ctx, userID); err == nil {
+		var uuid string
+		for _, d := range devices {
+			if d.ID == deviceID {
+				uuid = d.VlessUUID
+				break
+			}
+		}
+		if uuid != "" {
+			if nodes, nerr := s.nodeRepo.List(ctx); nerr == nil {
+				for _, n := range nodes {
+					if n.Protocol != "vless" {
+						continue
+					}
+					if derr := s.panel.DelClient(ctx, n, uuid); derr != nil {
+						slog.Warn("panel delClient (delete device)", "node", n.Codename, "device", deviceID, "err", derr.Error())
+					}
+				}
+			}
+		}
+	}
 	return s.deviceRepo.Delete(ctx, deviceID, userID)
 }
 

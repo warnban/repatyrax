@@ -17,6 +17,7 @@ import (
 	"github.com/tyrax/tyrax-backend/internal/telegrambot"
 	"github.com/tyrax/tyrax-backend/pkg/cryptopay"
 	"github.com/tyrax/tyrax-backend/pkg/freekassa"
+	"github.com/tyrax/tyrax-backend/pkg/threexui"
 )
 
 func main() {
@@ -48,7 +49,9 @@ func main() {
 	cpClient := cryptopay.New(cfg.CryptoPayToken)
 
 	// ── Services ─────────────────────────────────────────────────────────────
-	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo)
+	// Panel syncer registers per-device VLESS UUIDs on each node's 3x-ui inbound.
+	panelSyncer := threexui.NewSyncer()
+	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer)
 	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient)
 	inviteSvc  := service.NewInviteService(userRepo, inviteRepo)
 
@@ -107,7 +110,7 @@ func main() {
 	protected.Get("/vpn/devices",            vpnH.GetDevices)
 	protected.Get("/vpn/split-domains",      vpnH.GetSplitDomains)
 	protected.Get("/nodes",                  vpnH.GetNodes)
-	protected.Post("/vpn/connect",           handler.LogConnect)
+	protected.Post("/vpn/connect",           vpnH.Connect)
 	protected.Post("/vpn/disconnect",        handler.LogDisconnect)
 
 	// Payments

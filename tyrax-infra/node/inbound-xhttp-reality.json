@@ -1,0 +1,41 @@
+{
+  "_comment": "TYRAX node inbound — VLESS + REALITY + XHTTP (Profile A). Paste into 3x-ui 'Add Inbound' (JSON view) or recreate the fields in the form. MUST stay identical to what the backend generates in pkg/vpnconfig/vless.go and to the DB nodes row. Replace <PRIVATE_KEY> and <SHORT_ID> with the values printed by deploy-node.sh. The 'clients' list starts with one bootstrap client; the TYRAX backend adds per-device UUIDs via the 3x-ui panel API.",
+  "listen": "",
+  "port": 443,
+  "protocol": "vless",
+  "settings": {
+    "clients": [
+      {
+        "id": "<BOOTSTRAP_UUID_GENERATE_IN_PANEL>",
+        "flow": "",
+        "email": "tyrax-bootstrap"
+      }
+    ],
+    "decryption": "none",
+    "fallbacks": []
+  },
+  "streamSettings": {
+    "network": "xhttp",
+    "security": "reality",
+    "realitySettings": {
+      "show": false,
+      "dest": "www.microsoft.com:443",
+      "xver": 0,
+      "serverNames": ["www.microsoft.com"],
+      "privateKey": "<PRIVATE_KEY>",
+      "shortIds": ["<SHORT_ID>"],
+      "fingerprint": "chrome"
+    },
+    "xhttpSettings": {
+      "path": "/api/v1/data",
+      "mode": "auto",
+      "extra": {
+        "xPaddingBytes": "100-1000"
+      }
+    }
+  },
+  "sniffing": {
+    "enabled": true,
+    "destOverride": ["http", "tls", "quic"]
+  }
+}

@@ -50,8 +50,9 @@ object TyraxVpnManager {
     private var pendingCodename: String = "—"
     private var currentEndpointHost: String? = null
 
-    private val _state = MutableStateFlow<VpnState>(VpnState.Disconnected)
-    val state: StateFlow<VpnState> = _state.asStateFlow()
+    // Backed by the shared VpnStateBus so WireGuard and Xray report through one flow.
+    private val _state get() = VpnStateBus.state
+    val state: StateFlow<VpnState> = VpnStateBus.state.asStateFlow()
 
     // The active tunnel handle. wg-go puts a Tunnel into a terminal state once it
     // has been brought DOWN, so the instance cannot be reused — we create a fresh
@@ -84,6 +85,7 @@ object TyraxVpnManager {
     fun connect(context: Context, wireGuardConf: String, nodeCodename: String) {
         pendingConfig = wireGuardConf
         pendingCodename = nodeCodename
+        VpnStateBus.activeEngine = VpnStateBus.Engine.WIREGUARD
 
         val consent = VpnService.prepare(context.applicationContext)
         if (consent != null) {
@@ -99,12 +101,52 @@ object TyraxVpnManager {
         bringUp(context.applicationContext, conf, pendingCodename)
     }
 
+    /**
+     * Ensures the [Interface] section of a WireGuard config string always contains
+     * our preferred DNS servers and MTU, overriding whatever the server sent.
+     * GoBackend reads these fields and forwards them to VpnService.Builder, which
+     * pushes them into the OS VPN layer — bypassing Private DNS at the system level.
+     */
+    private fun enforceInterfaceDefaults(conf: String): String {
+        val lines = conf.lines().toMutableList()
+        var inInterface = false
+        var dnsIdx = -1
+        var mtuIdx = -1
+
+        lines.forEachIndexed { i, line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.equals("[Interface]", ignoreCase = true) -> inInterface = true
+                trimmed.startsWith("[") -> inInterface = false
+                inInterface && trimmed.startsWith("DNS", ignoreCase = true) -> dnsIdx = i
+                inInterface && trimmed.startsWith("MTU", ignoreCase = true) -> mtuIdx = i
+            }
+        }
+
+        if (dnsIdx >= 0) {
+            lines[dnsIdx] = "DNS = 1.1.1.1, 1.0.0.1, 8.8.8.8, 8.8.4.4"
+        } else {
+            // Insert after [Interface] header
+            val headerIdx = lines.indexOfFirst { it.trim().equals("[Interface]", ignoreCase = true) }
+            if (headerIdx >= 0) lines.add(headerIdx + 1, "DNS = 1.1.1.1, 1.0.0.1, 8.8.8.8, 8.8.4.4")
+        }
+
+        if (mtuIdx >= 0) {
+            lines[mtuIdx] = "MTU = 1420"
+        } else {
+            val headerIdx = lines.indexOfFirst { it.trim().equals("[Interface]", ignoreCase = true) }
+            if (headerIdx >= 0) lines.add(headerIdx + 1, "MTU = 1420")
+        }
+
+        return lines.joinToString("\n")
+    }
+
     private fun bringUp(appContext: Context, conf: String, codename: String) {
         _state.value = VpnState.Connecting
         scope.launch {
             try {
                 val be = backend(appContext)
-                val config = Config.parse(BufferedReader(StringReader(conf)))
+                val config = Config.parse(BufferedReader(StringReader(enforceInterfaceDefaults(conf))))
                 currentEndpointHost = config.peers.firstOrNull()
                     ?.endpoint?.orElse(null)?.host
 
@@ -136,6 +178,7 @@ object TyraxVpnManager {
             }
             pendingConfig = null
             currentEndpointHost = null
+            VpnStateBus.activeEngine = VpnStateBus.Engine.NONE
             _state.value = VpnState.Disconnected
         }
     }

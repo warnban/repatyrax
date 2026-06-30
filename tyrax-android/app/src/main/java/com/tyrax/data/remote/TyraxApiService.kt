@@ -41,6 +41,10 @@ interface TyraxApiService {
     @POST("vpn/device")
     suspend fun addDevice(@Body req: AddDeviceRequest): ApiResponse<DeviceConfigDto>
 
+    /** Returns `{ protocol, config }` where `config` is the ready-to-run tunnel config. */
+    @POST("vpn/connect")
+    suspend fun connectVpn(@Body req: VpnConnectRequest): ApiResponse<VpnConfigDto>
+
     @DELETE("vpn/device/{id}")
     suspend fun deleteDevice(@Path("id") deviceId: String): ApiResponse<Unit>
 

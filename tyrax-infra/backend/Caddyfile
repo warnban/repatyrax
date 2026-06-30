@@ -1,0 +1,8 @@
+# TYRAX backend reverse proxy (reference copy; deploy-backend.sh writes this to
+# /etc/caddy/Caddyfile automatically). Replace api.tyrax.app with your FQDN.
+# Caddy obtains+renews Let's Encrypt certs automatically once DNS points here.
+
+api.tyrax.app {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8080
+}

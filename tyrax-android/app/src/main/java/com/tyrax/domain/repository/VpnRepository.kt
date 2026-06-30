@@ -13,6 +13,7 @@ interface VpnRepository {
     suspend fun getNodes(): Result<List<Node>>
     suspend fun getBestNode(): Result<Node>
     suspend fun getDeviceConfig(devicePublicKey: String): Result<VpnConfig>
+    suspend fun connect(name: String, codename: String): Result<VpnConfig>
     suspend fun addDevice(name: String): Result<DeviceConfig>
     suspend fun getDevices(): Result<List<UserDevice>>
     suspend fun deleteDevice(id: String): Result<Unit>

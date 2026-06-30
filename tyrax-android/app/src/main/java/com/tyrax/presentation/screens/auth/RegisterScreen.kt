@@ -38,11 +38,13 @@ fun RegisterScreen(
             when (event) {
                 is AuthUiEvent.NavigateToMain -> onNavigateToMain()
                 is AuthUiEvent.OpenUrl -> {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(event.url)).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                    )
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(event.url)).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -190,11 +192,13 @@ fun RegisterScreen(
 
             TelegramBotHint(
                 onClick = {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/tyraxvpnbot")).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                    )
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/tyraxvpnbot")).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                        )
+                    }
                 },
             )
 

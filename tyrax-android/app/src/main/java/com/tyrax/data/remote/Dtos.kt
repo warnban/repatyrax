@@ -48,15 +48,38 @@ data class AddDeviceRequest(
     val name: String,
 )
 
+/** Body for POST /vpn/connect — server requires device name + target node codename. */
+data class VpnConnectRequest(
+    val name: String,
+    val codename: String,
+)
+
 data class DeviceConfigDto(
     @SerializedName("device_id")      val deviceId: String,
+    val protocol: String? = null, // "wireguard" | "vless"
     @SerializedName("wireguard_conf") val wireguardConf: String? = null,
     @SerializedName("vless_conf")     val vlessConf: String? = null,
+    // Structured VLESS + Reality params (present when protocol == "vless").
+    val uuid: String? = null,
+    @SerializedName("node_host")           val nodeHost: String? = null,
+    @SerializedName("node_port")           val nodePort: Int? = null,
+    @SerializedName("reality_public_key")  val realityPublicKey: String? = null,
+    @SerializedName("reality_sni")         val realitySni: String? = null,
+    @SerializedName("reality_short_id")    val realityShortId: String? = null,
+    // Transport / anti-DPI params (RU 2026); present when protocol == "vless".
+    val security: String? = null,
+    val network: String? = null,
+    val flow: String? = null,
+    @SerializedName("xhttp_path")          val xhttpPath: String? = null,
+    @SerializedName("xhttp_mode")          val xhttpMode: String? = null,
+    @SerializedName("x_padding_bytes")     val xPaddingBytes: String? = null,
+    val fingerprint: String? = null,
     val nodes: List<NodeDto> = emptyList(),
 )
 
 data class VpnConfigDto(
     val protocol: String,
+    /** Raw WireGuard conf or Xray JSON string — field name is always `config`. */
     val config: String,
 )
 

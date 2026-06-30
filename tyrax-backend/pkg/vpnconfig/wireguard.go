@@ -20,7 +20,7 @@ func GenerateClientConfig(serverNode model.Node, clientPrivateKey, clientPublicK
 	b.WriteString("[Interface]\n")
 	fmt.Fprintf(&b, "PrivateKey = %s\n", clientPrivateKey)
 	fmt.Fprintf(&b, "Address = %s/32\n", clientIP)
-	b.WriteString("DNS = 1.1.1.1, 8.8.8.8\n")
+	b.WriteString("DNS = 1.1.1.1, 1.0.0.1, 8.8.8.8, 8.8.4.4\n")
 	b.WriteString("MTU = 1420\n")
 	b.WriteString("\n")
 	b.WriteString("[Peer]\n")

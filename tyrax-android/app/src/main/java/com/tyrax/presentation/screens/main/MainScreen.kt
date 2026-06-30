@@ -1,27 +1,28 @@
 package com.tyrax.presentation.screens.main
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloat
-import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.runtime.key
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -32,10 +33,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -46,7 +49,57 @@ import com.tyrax.domain.model.VpnState
 import com.tyrax.presentation.components.GlitchText
 import com.tyrax.presentation.theme.TyraxColors
 import com.tyrax.presentation.theme.TyraxTypography
+import com.v2ray.ang.service.TProxyService
 import kotlinx.coroutines.delay
+
+/** Bump on every build so the device can confirm which APK is actually installed. */
+private const val BUILD_TAG = "BUILD 0726-L"
+
+/**
+ * Copies a compact Xray diagnostic bundle (running config + error log + recent
+ * access log) to the clipboard. Tapping [BUILD_TAG] invokes this so logs can be
+ * pasted into chat without adb or file-manager access to Android/data.
+ */
+private fun copyDiagnostics(ctx: android.content.Context) {
+    val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+    fun read(name: String, lastLines: Int? = null): String {
+        val f = java.io.File(dir, name)
+        if (!f.exists()) return "<$name: missing>"
+        val text = runCatching { f.readText() }.getOrElse { "<$name: ${it.message}>" }
+        return if (lastLines != null) text.lines().takeLast(lastLines).joinToString("\n") else text
+    }
+    // Drop the UDP teardown spam ("closed pipe" / "use of closed network connection")
+    // that floods the error log on disconnect, so Reality/dial errors stay visible.
+    fun readErr(lastLines: Int): String {
+        val f = java.io.File(dir, "xray_error.log")
+        if (!f.exists()) return "<xray_error.log: missing>"
+        val kept = runCatching { f.readLines() }.getOrElse { return "<xray_error.log: ${it.message}>" }
+            .filterNot {
+                val l = it.lowercase()
+                l.contains("closed pipe") || l.contains("use of closed network connection")
+            }
+        return kept.takeLast(lastLines).joinToString("\n")
+    }
+    val hevStats = runCatching {
+        val s = TProxyService.TProxyGetStats()
+        if (s.size >= 2) "hev tx=${s[0]} rx=${s[1]} (rx=0 → return path broken)"
+        else "hev stats: unexpected length ${s.size}"
+    }.getOrElse { "hev stats: ${it.message}" }
+    val bundle = buildString {
+        appendLine("=== TYRAX DIAG $BUILD_TAG ===")
+        appendLine("--- hev tunnel ---")
+        appendLine(hevStats)
+        appendLine("--- xray_config.json ---")
+        appendLine(read("xray_config.json"))
+        appendLine("--- xray_error.log (filtered) ---")
+        appendLine(readErr(150))
+        appendLine("--- xray_access.log (last 30) ---")
+        appendLine(read("xray_access.log", 30))
+    }
+    val clipboard = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("tyrax-diag", bundle))
+    Toast.makeText(ctx, "DIAG COPIED — PASTE TO CHAT", Toast.LENGTH_LONG).show()
+}
 
 @Composable
 fun MainScreen(
@@ -55,6 +108,8 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit = {},
     viewModel: MainViewModel = hiltViewModel(),
 ) {
+    // Hoist context to top of composable — do NOT read LocalContext inside Column/Box bodies.
+    val ctx = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // System VPN consent dialog. On approval, resume the pending connection.
@@ -145,13 +200,20 @@ fun MainScreen(
                         style = TyraxTypography.display.copy(color = statusColor),
                     )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text  = BUILD_TAG,
+                    style = TyraxTypography.label.copy(color = TyraxColors.Red),
+                    modifier = Modifier.clickable { copyDiagnostics(ctx) },
+                )
             }
 
             // ── CENTER ZONE — 200×200dp main button ───────────────────────────
             MainButton(
-                vpnState = uiState.vpnState,
+                vpnState     = uiState.vpnState,
                 onConnect    = { viewModel.connect() },
                 onDisconnect = { viewModel.disconnect() },
+                onTapDebug   = { Toast.makeText(ctx, "TYRAX TAP", Toast.LENGTH_SHORT).show() },
             )
 
             // ── BOTTOM ZONE — node info + nav ──────────────────────────────────
@@ -268,11 +330,12 @@ private fun MainButton(
     vpnState: VpnState,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onTapDebug: () -> Unit = {},
 ) {
-    val isConnected    = vpnState is VpnState.Connected
-    val isConnecting   = vpnState is VpnState.Connecting || vpnState is VpnState.Reconnecting
+    val isConnected  = vpnState is VpnState.Connected
+    val isConnecting = vpnState is VpnState.Connecting || vpnState is VpnState.Reconnecting
 
-    // 600ms pulse on the border when connecting or reconnecting.
+    // 600ms pulse on the border while connecting.
     val infiniteTransition = rememberInfiniteTransition(label = "button_pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue  = 0.4f,
@@ -284,36 +347,33 @@ private fun MainButton(
         label = "pulse",
     )
 
-    val borderColor: Color = when {
-        isConnected  -> TyraxColors.Red
-        isConnecting -> TyraxColors.Red
-        else         -> TyraxColors.White
-    }
-    val borderAlpha = when {
-        isConnecting -> pulseAlpha
-        else         -> 1f
-    }
+    val borderColor: Color = if (isConnected || isConnecting) TyraxColors.Red else TyraxColors.White
+    val borderAlpha        = if (isConnecting) pulseAlpha else 1f
 
     val labelText = when {
         isConnecting -> stringResource(R.string.status_breaching_short)
         isConnected  -> stringResource(R.string.btn_disconnect)
         else         -> stringResource(R.string.btn_enter)
     }
-    val labelColor = when {
-        isConnected -> TyraxColors.Red
-        else        -> TyraxColors.White
-    }
+    val labelColor = if (isConnected) TyraxColors.Red else TyraxColors.White
 
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(200.dp)
-            .alpha(borderAlpha)
-            .border(1.5.dp, borderColor)
-            .background(Color.Transparent)
-            .clickable {
+            // clickable BEFORE alpha/border — alpha() creates a graphics layer and must
+            // not wrap the gesture recogniser or hit-testing can silently fail.
+            .clickable(
+                interactionSource = interactionSource,
+                indication        = null,
+            ) {
+                android.util.Log.d("TYRAX-UI", "button tapped isConnected=$isConnected")
+                onTapDebug()
                 if (isConnected) onDisconnect() else onConnect()
-            },
+            }
+            .alpha(borderAlpha)
+            .border(1.5.dp, borderColor),
     ) {
         Text(
             text      = labelText,

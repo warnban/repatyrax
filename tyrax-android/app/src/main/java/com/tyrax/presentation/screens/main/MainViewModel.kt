@@ -1,12 +1,11 @@
 package com.tyrax.presentation.screens.main
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tyrax.domain.model.VpnState
 import com.tyrax.domain.repository.VpnRepository
-import com.tyrax.domain.usecase.ConnectToNodeUseCase
-import com.tyrax.domain.usecase.DisconnectUseCase
-import com.tyrax.domain.usecase.GetBestNodeUseCase
+import com.tyrax.domain.usecase.ConnectionSupervisor
 import com.tyrax.domain.usecase.GetSubscriptionUseCase
 import com.tyrax.domain.usecase.ResumeConnectionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,9 +33,7 @@ data class MainUiState(
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val connectToNodeUseCase: ConnectToNodeUseCase,
-    private val disconnectUseCase: DisconnectUseCase,
-    private val getBestNodeUseCase: GetBestNodeUseCase,
+    private val connectionSupervisor: ConnectionSupervisor,
     private val getSubscriptionUseCase: GetSubscriptionUseCase,
     private val resumeConnectionUseCase: ResumeConnectionUseCase,
     vpnRepository: VpnRepository,
@@ -78,18 +75,29 @@ class MainViewModel @Inject constructor(
         )
 
     fun connect() {
-        viewModelScope.launch {
-            val best = getBestNodeUseCase().getOrNull()
-            connectToNodeUseCase(best)
+        Log.d(TAG, "connect() called, state=${uiState.value.vpnState}")
+        // Guard: never start while already connecting or connected.
+        val state = uiState.value.vpnState
+        if (state is VpnState.Connecting || state is VpnState.Connected) {
+            Log.d(TAG, "connect() ignored — state=${state::class.simpleName}")
+            return
         }
+        // The supervisor owns node selection, health monitoring and silent
+        // failover; it is idempotent and runs in an app-scoped coroutine.
+        connectionSupervisor.start()
     }
 
     fun disconnect() {
-        disconnectUseCase()
+        connectionSupervisor.stop()
     }
 
     /** Called by the UI once the system VPN consent dialog returns OK. */
     fun onPermissionGranted() {
+        Log.d(TAG, "onPermissionGranted()")
         resumeConnectionUseCase()
+    }
+
+    companion object {
+        private const val TAG = "TYRAX-VM"
     }
 }

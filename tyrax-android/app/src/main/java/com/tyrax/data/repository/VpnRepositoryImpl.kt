@@ -1,6 +1,7 @@
 package com.tyrax.data.repository
 
 import com.tyrax.data.remote.AddDeviceRequest
+import com.tyrax.data.remote.VpnConnectRequest
 import com.tyrax.data.remote.DeviceConfigDto
 import com.tyrax.data.remote.InviteDto
 import com.tyrax.data.remote.NodeDto
@@ -19,6 +20,7 @@ import com.tyrax.domain.model.Subscription
 import com.tyrax.domain.model.UserDevice
 import com.tyrax.domain.model.VpnConfig
 import com.tyrax.domain.model.VpnState
+import android.util.Log
 import com.tyrax.domain.repository.VpnRepository
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -47,8 +49,22 @@ class VpnRepositoryImpl @Inject constructor(
         resp.data?.toDomain() ?: error("NODE UNAVAILABLE")
     }.mapApiError()
 
+    override suspend fun connect(name: String, codename: String): Result<VpnConfig> = runCatching {
+        val resp = api.connectVpn(VpnConnectRequest(name = name, codename = codename))
+        Log.d(
+            "TYRAX-Repo",
+            "connectVpn resp: status=${resp.status} protocol=${resp.data?.protocol} " +
+                "configLen=${resp.data?.config?.length ?: 0}",
+        )
+        resp.data?.toDomain() ?: error(resp.message ?: "NODE UNAVAILABLE")
+    }.mapApiError()
+
     override suspend fun addDevice(name: String): Result<DeviceConfig> = runCatching {
         val resp = api.addDevice(AddDeviceRequest(name))
+        Log.d("TYRAX-Repo", "addDevice resp: status=${resp.status} message=${resp.message} " +
+            "data=${resp.data != null} protocol=${resp.data?.protocol} " +
+            "uuid=${resp.data?.uuid} host=${resp.data?.nodeHost} port=${resp.data?.nodePort} " +
+            "pubKey=${resp.data?.realityPublicKey?.take(16)} sni=${resp.data?.realitySni}")
         resp.data?.toDomain() ?: error(resp.message ?: "DEVICE LIMIT REACHED")
     }.mapApiError()
 
@@ -103,8 +119,22 @@ private fun VpnConfigDto.toDomain() = VpnConfig(
 
 private fun DeviceConfigDto.toDomain() = DeviceConfig(
     deviceId = deviceId,
+    protocol = protocol,
     wireGuardConf = wireguardConf,
     vlessConf = vlessConf,
+    uuid = uuid,
+    nodeHost = nodeHost,
+    nodePort = nodePort,
+    realityPublicKey = realityPublicKey,
+    realitySni = realitySni,
+    realityShortId = realityShortId,
+    security = security,
+    network = network,
+    flow = flow,
+    xhttpPath = xhttpPath,
+    xhttpMode = xhttpMode,
+    xPaddingBytes = xPaddingBytes,
+    fingerprint = fingerprint,
     nodes = nodes.map { it.toDomain() },
 )
 
