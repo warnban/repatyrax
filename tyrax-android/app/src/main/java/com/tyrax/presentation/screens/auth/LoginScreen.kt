@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -67,6 +69,7 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 32.dp),
         ) {
             Spacer(modifier = Modifier.height(72.dp))
@@ -110,6 +113,7 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
+            // Primary: sign in with credentials.
             TyraxButton(
                 label    = stringResource(R.string.btn_login),
                 onClick  = { viewModel.login(email, password) },
@@ -117,33 +121,28 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Divider with "or"
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier          = Modifier.fillMaxWidth(),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .background(TyraxColors.SubText),
-                )
-                Text(
-                    text     = stringResource(R.string.label_or),
-                    style    = TyraxTypography.label,
-                    color    = TyraxColors.SubText,
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(1.dp)
-                        .background(TyraxColors.SubText),
-                )
-            }
+            // Prominent: create an in-app account (no Telegram). Was a small text
+            // link at the bottom — now a full-width button next to sign-in.
+            TyraxButton(
+                label    = stringResource(R.string.btn_register),
+                onClick  = onNavigateToRegister,
+                filled   = false,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // Telegram section — a single tap both signs in and registers.
+            Text(
+                text      = stringResource(R.string.auth_telegram_section),
+                style     = TyraxTypography.label,
+                color     = TyraxColors.SubText,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             TyraxButton(
                 label    = stringResource(R.string.auth_enter_via_telegram),
@@ -153,7 +152,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             TelegramBotHint(
                 onClick = {
@@ -167,16 +166,7 @@ fun LoginScreen(
                 },
             )
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text     = stringResource(R.string.auth_no_account),
-                style    = TyraxTypography.label,
-                color    = TyraxColors.SubText,
-                modifier = Modifier
-                    .clickable(onClick = onNavigateToRegister)
-                    .padding(bottom = 40.dp, top = 8.dp),
-            )
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }

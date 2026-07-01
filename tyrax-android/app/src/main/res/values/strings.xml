@@ -157,8 +157,8 @@
 
     <!-- Onboarding -->
     <string name="onboarding_slide2_title">С НАМИ РЕШАЕШЬ — ТЫ</string>
-    <string name="onboarding_slide3_title">БЕЗ\nРАЗРЕШЕНИЯ</string>
-    <string name="onboarding_get_access">ПОЛУЧИТЬ ДОСТУП</string>
+    <string name="onboarding_slide3_title">ВОЙДИ В\nСВОБОДНЫЙ\nИНТЕРНЕТ\nС TYRAX</string>
+    <string name="onboarding_get_access">ВОЙТИ</string>
     <string name="onboarding_bot_step1_prefix">1. Открой</string>
     <string name="onboarding_bot_step1_suffix">в Telegram</string>
     <string name="onboarding_bot_step2">2. Нажми START — аккаунт создастся автоматически</string>
@@ -171,7 +171,8 @@
 
     <!-- Auth -->
     <string name="label_brand">TYRAX</string>
-    <string name="auth_enter_via_telegram">ВОЙТИ ЧЕРЕЗ TELEGRAM</string>
+    <string name="auth_enter_via_telegram">ЧЕРЕЗ TELEGRAM</string>
+    <string name="auth_telegram_section">ВОЙТИ ИЛИ ЗАРЕГИСТРИРОВАТЬСЯ</string>
     <string name="auth_enter_via_credentials">ENTER CREDENTIALS</string>
     <string name="auth_label_login">Эл. почта</string>
     <string name="auth_label_password">Пароль</string>

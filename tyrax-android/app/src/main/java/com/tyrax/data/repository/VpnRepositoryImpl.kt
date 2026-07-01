@@ -39,8 +39,9 @@ class VpnRepositoryImpl @Inject constructor(
     override suspend fun getBestNode(): Result<Node> = runCatching {
         val resp = api.getNodes()
         val nodes = resp.data?.map { it.toDomain() } ?: error("NODE UNAVAILABLE")
-        nodes.filter { it.status == NodeStatus.OPEN }
-            .minByOrNull { it.pingMs }
+        // Server returns nodes already ordered by live load (least-loaded first),
+        // so the first OPEN node is the balanced pick — no local re-sort by ping.
+        nodes.firstOrNull { it.status == NodeStatus.OPEN }
             ?: error("NODE UNAVAILABLE")
     }.mapApiError()
 

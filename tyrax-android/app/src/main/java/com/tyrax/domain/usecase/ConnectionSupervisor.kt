@@ -114,11 +114,15 @@ class ConnectionSupervisor @Inject constructor(
         }
     }
 
-    /** Loads OPEN nodes ordered by ping; falls back to the single best node. */
+    /**
+     * Loads OPEN nodes in the order the server returns them. The backend already
+     * orders nodes by live load (least-loaded first, ping as fallback), so we
+     * honour that order instead of re-sorting locally — this is what makes
+     * server-side load balancing effective. Falls back to the single best node.
+     */
     private suspend fun loadCandidates(): List<Node> {
         val nodes = vpnRepository.getNodes().getOrNull()
             ?.filter { it.status == NodeStatus.OPEN }
-            ?.sortedBy { it.pingMs }
             ?: emptyList()
         if (nodes.isNotEmpty()) return nodes
         return vpnRepository.getBestNode().getOrNull()?.let { listOf(it) } ?: emptyList()

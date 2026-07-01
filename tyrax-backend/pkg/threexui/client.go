@@ -65,6 +65,13 @@ type clientTrafficResp struct {
 	} `json:"obj"`
 }
 
+// onlinesResp is the shape of POST /panel/api/inbounds/onlines — obj is the list
+// of client emails currently online across the panel's inbounds.
+type onlinesResp struct {
+	Success bool     `json:"success"`
+	Obj     []string `json:"obj"`
+}
+
 // post sends a JSON body to an API path with the Bearer token attached.
 func (c *Client) post(ctx context.Context, path string, body any) (*apiResp, error) {
 	payload, err := json.Marshal(body)
@@ -120,6 +127,33 @@ func (c *Client) GetClientTraffic(ctx context.Context, email string) (int64, err
 		return 0, nil
 	}
 	return r.Obj.Up + r.Obj.Down, nil
+}
+
+// Onlines returns how many clients are currently online on this panel
+// (POST /panel/api/inbounds/onlines). Used as a live load metric for balancing.
+func (c *Client) Onlines(ctx context.Context) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/panel/api/inbounds/onlines", bytes.NewReader([]byte("{}")))
+	if err != nil {
+		return 0, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("panel onlines: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var r onlinesResp
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return 0, fmt.Errorf("panel onlines: non-JSON response (status %d)", resp.StatusCode)
+	}
+	if !r.Success {
+		return 0, fmt.Errorf("panel onlines: success=false")
+	}
+	return len(r.Obj), nil
 }
 
 // AddClient registers a VLESS client (UUID + email) and attaches it to the given
@@ -232,4 +266,15 @@ func (s *Syncer) ClientTraffic(ctx context.Context, node model.Node, email strin
 		return 0, nil
 	}
 	return c.GetClientTraffic(ctx, email)
+}
+
+// Onlines reports the number of clients currently online on a node's panel.
+// A node without panel credentials cannot be metered — returns an error so the
+// balancer treats its load as unknown (fail-open to ping ordering).
+func (s *Syncer) Onlines(ctx context.Context, node model.Node) (int, error) {
+	c, ok := s.clientFor(node)
+	if !ok {
+		return 0, fmt.Errorf("node %s has no panel", node.Codename)
+	}
+	return c.Onlines(ctx)
 }

@@ -53,13 +53,19 @@ func main() {
 	// and also reads per-device traffic counters for FREE-tier metering.
 	panelSyncer := threexui.NewSyncer()
 	trafficSvc := service.NewTrafficService(userRepo, deviceRepo, nodeRepo, panelSyncer)
-	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer, trafficSvc)
+	// Balancer samples live per-node online counts so GetNodes can steer clients
+	// to the least-loaded node. Fail-open: no data ⇒ default ping ordering.
+	nodeBalancer := service.NewNodeBalancer(nodeRepo, panelSyncer)
+	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer, trafficSvc, nodeBalancer)
 	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient)
 	inviteSvc  := service.NewInviteService(userRepo, inviteRepo)
 
 	// Traffic accounting sweep — reads node panels, credits usage, blocks FREE
 	// identities over quota. Fail-open: never affects the tunnel on error.
 	go trafficSvc.RunLoop(ctx)
+
+	// Live load sampler for node balancing. Fail-open: never affects the tunnel.
+	go nodeBalancer.RunLoop(ctx)
 
 	// ── Telegram bot worker ────────────────────────────────────────────────────
 	// Full bot: auth deep links, account, config delivery, devices, payments.

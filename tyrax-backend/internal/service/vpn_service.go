@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
+	"sort"
 
 	"github.com/tyrax/tyrax-backend/internal/model"
 	"github.com/tyrax/tyrax-backend/internal/repository"
@@ -25,6 +27,13 @@ type PanelSyncer interface {
 // a nil guard disables enforcement entirely (fail-open).
 type TrafficGuard interface {
 	CheckBlocked(ctx context.Context, userID string) (bool, error)
+}
+
+// NodeLoadProvider returns a node's live online-client count and whether that
+// reading is fresh enough to trust. Implemented by *NodeBalancer. Optional: a
+// nil provider disables load balancing (fail-open to ping ordering).
+type NodeLoadProvider interface {
+	NodeLoad(nodeID string) (count int, fresh bool)
 }
 
 var (
@@ -75,6 +84,9 @@ type NodeResponse struct {
 	Country  string `json:"country"`
 	Status   string `json:"status"`
 	PingMS   int    `json:"ping_ms"`
+	// Load is the live online-client count used for balancing, or -1 when unknown
+	// (never sampled / stale / no panel). Exposed for observability.
+	Load int `json:"load"`
 }
 
 type VPNService interface {
@@ -93,15 +105,17 @@ type vpnService struct {
 	userRepo   repository.UserRepository
 	panel      PanelSyncer
 	traffic    TrafficGuard
+	load       NodeLoadProvider
 }
 
-func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, panel PanelSyncer, traffic TrafficGuard) VPNService {
+func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, panel PanelSyncer, traffic TrafficGuard, load NodeLoadProvider) VPNService {
 	return &vpnService{
 		nodeRepo:   nodeRepo,
 		deviceRepo: deviceRepo,
 		userRepo:   userRepo,
 		panel:      panel,
 		traffic:    traffic,
+		load:       load,
 	}
 }
 
@@ -368,17 +382,68 @@ func (s *vpnService) GetNodes(ctx context.Context) ([]NodeResponse, error) {
 		return nil, fmt.Errorf("list nodes: %w", err)
 	}
 
+	// nodeRepo.List returns ping-ascending order; balanceOrder promotes the
+	// least-loaded OPEN nodes to the front (fail-open to the ping order).
+	nodes = s.balanceOrder(nodes)
+
 	resp := make([]NodeResponse, 0, len(nodes))
 	for _, n := range nodes {
+		load := -1
+		if s.load != nil {
+			if c, fresh := s.load.NodeLoad(n.ID); fresh {
+				load = c
+			}
+		}
 		resp = append(resp, NodeResponse{
 			ID:       n.ID,
 			Codename: n.Codename,
 			Country:  n.Country,
 			Status:   string(n.Status),
 			PingMS:   n.PingMS,
+			Load:     load,
 		})
 	}
 	return resp, nil
+}
+
+// balanceOrder reorders nodes so clients (which honour server order) try the
+// least-loaded node first. Only OPEN vless nodes with a fresh load reading take
+// part; everything else keeps the incoming ping order and trails behind. If no
+// node has a fresh reading, the original ping order is returned unchanged so the
+// tunnel behaves exactly as before (fail-open).
+func (s *vpnService) balanceOrder(nodes []model.Node) []model.Node {
+	if s.load == nil {
+		return nodes
+	}
+
+	balanced := make([]model.Node, 0, len(nodes))
+	rest := make([]model.Node, 0, len(nodes))
+	loadOf := make(map[string]int, len(nodes))
+
+	for _, n := range nodes {
+		if n.Status == model.NodeOpen && n.Protocol == "vless" && n.PanelURL != "" {
+			if c, fresh := s.load.NodeLoad(n.ID); fresh {
+				loadOf[n.ID] = c
+				balanced = append(balanced, n)
+				continue
+			}
+		}
+		rest = append(rest, n)
+	}
+
+	if len(balanced) == 0 {
+		return nodes // nothing fresh to balance on — keep ping order
+	}
+
+	// Shuffle first, then stable-sort by load: equal-load nodes end up in random
+	// relative order, spreading simultaneous connects instead of herding them all
+	// onto one node within a sampling window.
+	rand.Shuffle(len(balanced), func(i, j int) { balanced[i], balanced[j] = balanced[j], balanced[i] })
+	sort.SliceStable(balanced, func(i, j int) bool {
+		return loadOf[balanced[i].ID] < loadOf[balanced[j].ID]
+	})
+
+	return append(balanced, rest...)
 }
 
 func (s *vpnService) ListDevices(ctx context.Context, userID string) ([]model.Device, error) {

@@ -18,15 +18,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tyrax.R
 import com.tyrax.presentation.components.TyraxButton
 import com.tyrax.presentation.theme.TyraxColors
 import com.tyrax.presentation.theme.TyraxTypography
 import kotlinx.coroutines.delay
+
+// Slightly smaller than the global display style so long words wrap cleanly on
+// every slide (e.g. "СВОБОДНЫЙ", "ИНТЕРНЕТ") without a single letter spilling
+// onto its own line.
+private val SlideTitleStyle: TextStyle
+    @Composable get() = TyraxTypography.display.copy(
+        fontSize      = 38.sp,
+        letterSpacing = 2.sp,
+        lineHeight    = 46.sp,
+    )
 
 @Composable
 fun OnboardingScreen(
@@ -101,7 +113,7 @@ private fun SlideOne() {
         words.forEachIndexed { i, word ->
             Text(
                 text      = word,
-                style     = TyraxTypography.display,
+                style     = SlideTitleStyle,
                 textAlign = TextAlign.Center,
                 modifier  = Modifier.alpha(animatedAlphas[i]),
             )
@@ -120,7 +132,7 @@ private fun SlideTwo() {
     ) {
         Text(
             text      = stringResource(R.string.onboarding_slide2_title),
-            style     = TyraxTypography.display,
+            style     = SlideTitleStyle,
             textAlign = TextAlign.Center,
         )
     }
@@ -153,7 +165,7 @@ private fun SlideThree(onNavigateToLogin: () -> Unit) {
     ) {
         Text(
             text      = stringResource(R.string.onboarding_slide3_title),
-            style     = TyraxTypography.display,
+            style     = SlideTitleStyle,
             textAlign = TextAlign.Center,
         )
 
