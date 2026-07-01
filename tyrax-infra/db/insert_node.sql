@@ -13,7 +13,7 @@ INSERT INTO nodes (
     codename, country, host, port, protocol, status, min_tier,
     reality_public_key, reality_short_id, reality_sni, reality_dest,
     network, flow, xhttp_path, xhttp_mode, x_padding_bytes, fingerprint,
-    panel_url, panel_user, panel_pass, panel_inbound_id
+    panel_url, panel_user, panel_pass, panel_inbound_id, panel_token
 ) VALUES (
     'FI-01',                       -- codename (unique)
     'Finland',                     -- country
@@ -32,12 +32,15 @@ INSERT INTO nodes (
     'auto',                        -- xhttp_mode
     '100-1000',                    -- x_padding_bytes
     'chrome',                      -- fingerprint
-    -- 3x-ui panel creds for per-device UUID sync (variant a). Leave panel_url
-    -- empty to disable sync (manual / shared-UUID node).
+    -- 3x-ui panel access for per-device UUID sync. Leave panel_url empty to
+    -- disable sync (manual / shared-UUID node). Auth uses panel_token (Bearer):
+    -- 3x-ui >= 3.x guards POST /login with CSRF, so create an API token in the
+    -- panel UI (Settings -> Security -> API Token) and paste its plaintext here.
     'https://<NODE_IP>:2053/<BASE_PATH>', -- panel_url (scheme+host+port+basePath, no trailing /)
-    '<PANEL_USER>',                -- panel_user
-    '<PANEL_PASS>',                -- panel_pass
-    1                              -- panel_inbound_id (id of the inbound in 3x-ui, usually 1)
+    '<PANEL_USER>',                -- panel_user (reference only)
+    '<PANEL_PASS>',                -- panel_pass (reference only)
+    1,                             -- panel_inbound_id (id of the inbound in 3x-ui, usually 1)
+    '<PANEL_API_TOKEN>'            -- panel_token (Bearer API token from the panel)
 )
 ON CONFLICT (codename) DO UPDATE SET
     country            = EXCLUDED.country,
@@ -59,7 +62,8 @@ ON CONFLICT (codename) DO UPDATE SET
     panel_url          = EXCLUDED.panel_url,
     panel_user         = EXCLUDED.panel_user,
     panel_pass         = EXCLUDED.panel_pass,
-    panel_inbound_id   = EXCLUDED.panel_inbound_id;
+    panel_inbound_id   = EXCLUDED.panel_inbound_id,
+    panel_token        = EXCLUDED.panel_token;
 
 -- Optional: drop the placeholder WireGuard seed nodes from 001_init that point
 -- at non-existent hosts, so auto-select never hands a client a dead node.

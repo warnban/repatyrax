@@ -1,7 +1,12 @@
 // Package threexui is a minimal client for the 3x-ui panel HTTP API. The TYRAX
 // backend uses it to register/remove per-device VLESS UUIDs on a node's inbound
-// (login -> /panel/api/inbounds/addClient | delClient), so Xray on the node
-// authenticates the same UUID the backend hands to the device.
+// (/panel/api/inbounds/addClient | delClient), so Xray on the node authenticates
+// the same UUID the backend hands to the device.
+//
+// Auth: a Bearer API token (created in the panel UI under Settings -> Security
+// -> API Token). 3x-ui >= 3.x guards POST /login with CSRF middleware (403 for
+// tokenless calls), but a valid Bearer token bypasses CSRF on all /panel/api/...
+// routes, so no login/session handling is needed.
 package threexui
 
 import (
@@ -11,8 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/cookiejar"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -22,29 +25,23 @@ import (
 
 const requestTimeout = 10 * time.Second
 
-// Client talks to a single 3x-ui panel. Safe for concurrent use; it lazily logs
-// in and re-authenticates once if the session has expired.
+// Client talks to a single 3x-ui panel using a Bearer API token. Safe for
+// concurrent use.
 type Client struct {
-	base string // e.g. https://1.2.3.4:2053/basepath (no trailing slash)
-	user string
-	pass string
-	http *http.Client
-
-	mu       sync.Mutex
-	loggedIn bool
+	base  string // e.g. https://1.2.3.4:2053/basepath (no trailing slash)
+	token string
+	http  *http.Client
 }
 
-// NewClient builds a panel client. The panel port usually serves a self-signed
-// certificate, so TLS verification is skipped on this admin-only channel.
-func NewClient(base, user, pass string) *Client {
-	jar, _ := cookiejar.New(nil)
+// NewClient builds a panel client. The panel port often serves a self-signed
+// certificate (or plain HTTP behind a firewall), so TLS verification is skipped
+// on this admin-only channel.
+func NewClient(base, token string) *Client {
 	return &Client{
-		base: strings.TrimRight(base, "/"),
-		user: user,
-		pass: pass,
+		base:  strings.TrimRight(base, "/"),
+		token: token,
 		http: &http.Client{
 			Timeout: requestTimeout,
-			Jar:     jar,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
@@ -57,60 +54,8 @@ type apiResp struct {
 	Msg     string `json:"msg"`
 }
 
-func (c *Client) login(ctx context.Context) error {
-	form := url.Values{"username": {c.user}, "password": {c.pass}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/login", strings.NewReader(form.Encode()))
-	if err != nil {
-		return fmt.Errorf("build login request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("panel login: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var r apiResp
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return fmt.Errorf("panel login: bad response (status %d)", resp.StatusCode)
-	}
-	if !r.Success {
-		return fmt.Errorf("panel login rejected: %s", r.Msg)
-	}
-	c.loggedIn = true
-	return nil
-}
-
-// post sends a JSON body to an API path, logging in first and retrying once if
-// the session looks expired.
+// post sends a JSON body to an API path with the Bearer token attached.
 func (c *Client) post(ctx context.Context, path string, body any) (*apiResp, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if !c.loggedIn {
-		if err := c.login(ctx); err != nil {
-			return nil, err
-		}
-	}
-
-	r, err := c.rawPost(ctx, path, body)
-	if err == nil && r != nil {
-		return r, nil
-	}
-
-	// Session may have expired — re-login once and retry.
-	c.loggedIn = false
-	if lerr := c.login(ctx); lerr != nil {
-		if err != nil {
-			return nil, err
-		}
-		return nil, lerr
-	}
-	return c.rawPost(ctx, path, body)
-}
-
-func (c *Client) rawPost(ctx context.Context, path string, body any) (*apiResp, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("marshal body: %w", err)
@@ -121,6 +66,7 @@ func (c *Client) rawPost(ctx context.Context, path string, body any) (*apiResp, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -130,8 +76,9 @@ func (c *Client) rawPost(ctx context.Context, path string, body any) (*apiResp, 
 
 	var r apiResp
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		// A non-JSON body (e.g. the login HTML page) means the session expired.
-		return nil, fmt.Errorf("panel %s: non-JSON response (status %d)", path, resp.StatusCode)
+		// A non-JSON body (e.g. an HTML login page or a 403 CSRF page) means the
+		// token is missing/invalid or the base path is wrong.
+		return nil, fmt.Errorf("panel %s: non-JSON response (status %d) — check panel_token/panel_url", path, resp.StatusCode)
 	}
 	return &r, nil
 }
@@ -213,12 +160,12 @@ func (s *Syncer) clientFor(node model.Node) (*Client, bool) {
 	if node.PanelURL == "" {
 		return nil, false
 	}
-	key := node.PanelURL + "|" + node.PanelUser
+	key := node.PanelURL + "|" + node.PanelToken
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, ok := s.clients[key]
 	if !ok {
-		c = NewClient(node.PanelURL, node.PanelUser, node.PanelPass)
+		c = NewClient(node.PanelURL, node.PanelToken)
 		s.clients[key] = c
 	}
 	return c, true

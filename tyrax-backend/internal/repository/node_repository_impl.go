@@ -19,7 +19,7 @@ const nodeQueryTimeout = 5 * time.Second
 var ErrNodeNotFound = errors.New("NODE UNAVAILABLE")
 
 // nodeColumns lists the columns selected into model.Node, in scan order.
-const nodeColumns = "id, codename, country, host, port, protocol, status, ping_ms, public_key, min_tier, reality_public_key, reality_short_id, reality_sni, reality_dest, network, flow, xhttp_path, xhttp_mode, x_padding_bytes, fingerprint, panel_url, panel_user, panel_pass, panel_inbound_id, security"
+const nodeColumns = "id, codename, country, host, port, protocol, status, ping_ms, public_key, min_tier, reality_public_key, reality_short_id, reality_sni, reality_dest, network, flow, xhttp_path, xhttp_mode, x_padding_bytes, fingerprint, panel_url, panel_user, panel_pass, panel_inbound_id, security, panel_token"
 
 type nodeRepository struct {
 	db *pgxpool.Pool
@@ -167,6 +167,7 @@ func scanNode(row rowScanner) (*model.Node, error) {
 		&n.PanelPass,
 		&n.PanelInboundID,
 		&n.Security,
+		&n.PanelToken,
 	); err != nil {
 		return nil, err
 	}

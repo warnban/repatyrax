@@ -58,13 +58,17 @@ type Node struct {
 	XPaddingBytes string `db:"x_padding_bytes" json:"-"` // e.g. "100-1000"
 	// Fingerprint is the uTLS ClientHello to mimic (default "chrome").
 	Fingerprint string `db:"fingerprint" json:"-"`
-	// Panel* are the node's 3x-ui panel credentials used by the backend to
+	// Panel* are the node's 3x-ui panel access details used by the backend to
 	// register/remove per-device VLESS UUIDs via the panel API. Secrets — never
 	// exposed in JSON. Empty PanelURL means "no sync" (manual / shared-UUID node).
+	// Auth uses PanelToken (Bearer API token): 3x-ui >= 3.x guards POST /login
+	// with CSRF, but a Bearer token bypasses CSRF on /panel/api/... routes.
+	// PanelUser/PanelPass are retained for reference/ops only.
 	PanelURL       string `db:"panel_url" json:"-"`
 	PanelUser      string `db:"panel_user" json:"-"`
 	PanelPass      string `db:"panel_pass" json:"-"`
 	PanelInboundID int    `db:"panel_inbound_id" json:"-"`
+	PanelToken     string `db:"panel_token" json:"-"`
 }
 
 type NodeStatus string
