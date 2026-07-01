@@ -32,6 +32,7 @@ services:
       DATABASE_URL: postgres://tyrax:${POSTGRES_PASSWORD:-tyrax_dev}@postgres:5432/tyrax?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:-change-me}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
       TELEGRAM_BOT_URL: ${TELEGRAM_BOT_URL:-https://t.me/tyraxvpnbot}
       FREEKASSA_SHOP_ID: ${FREEKASSA_SHOP_ID}
       FREEKASSA_API_KEY: ${FREEKASSA_API_KEY}
