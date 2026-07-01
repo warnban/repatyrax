@@ -17,7 +17,7 @@ import (
 // no-op, so WireGuard and manually-managed nodes are unaffected.
 type PanelSyncer interface {
 	AddClient(ctx context.Context, node model.Node, clientUUID, email string) error
-	DelClient(ctx context.Context, node model.Node, clientUUID string) error
+	DelClient(ctx context.Context, node model.Node, email string) error
 }
 
 var (
@@ -368,23 +368,25 @@ func (s *vpnService) ListDevices(ctx context.Context, userID string) ([]model.De
 }
 
 func (s *vpnService) DeleteDevice(ctx context.Context, deviceID, userID string) error {
-	// Remove the device's VLESS UUID from every vless node's inbound before
-	// deleting it locally. Best-effort: panel errors must not block deletion.
+	// Remove the device (registered under email == device.ID) from every vless
+	// node before deleting it locally. Ownership is verified first so a caller
+	// cannot evict another user's client from a node. Best-effort: panel errors
+	// must not block deletion, and delete-by-email is idempotent.
 	if devices, err := s.deviceRepo.GetByUserID(ctx, userID); err == nil {
-		var uuid string
+		owned := false
 		for _, d := range devices {
 			if d.ID == deviceID {
-				uuid = d.VlessUUID
+				owned = true
 				break
 			}
 		}
-		if uuid != "" {
+		if owned {
 			if nodes, nerr := s.nodeRepo.List(ctx); nerr == nil {
 				for _, n := range nodes {
 					if n.Protocol != "vless" {
 						continue
 					}
-					if derr := s.panel.DelClient(ctx, n, uuid); derr != nil {
+					if derr := s.panel.DelClient(ctx, n, deviceID); derr != nil {
 						slog.Warn("panel delClient (delete device)", "node", n.Codename, "device", deviceID, "err", derr.Error())
 					}
 				}

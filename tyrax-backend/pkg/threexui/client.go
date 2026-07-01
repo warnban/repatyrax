@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -83,28 +84,25 @@ func (c *Client) post(ctx context.Context, path string, body any) (*apiResp, err
 	return &r, nil
 }
 
-// AddClient registers a VLESS client (UUID + email) on the given inbound. A
+// AddClient registers a VLESS client (UUID + email) and attaches it to the given
+// inbound via the 3x-ui >= 3.1 client API (POST /panel/api/clients/add). A
 // "duplicate" response is treated as success so the call is idempotent.
 func (c *Client) AddClient(ctx context.Context, inboundID int, clientUUID, email, flow string) error {
-	clientObj := map[string]any{
-		"id":         clientUUID,
-		"flow":       flow,
-		"email":      email,
-		"enable":     true,
-		"limitIp":    0,
-		"totalGB":    0,
-		"expiryTime": 0,
-		"subId":      "",
-		"tgId":       "",
-		"reset":      0,
+	body := map[string]any{
+		"client": map[string]any{
+			"id":         clientUUID,
+			"email":      email,
+			"flow":       flow,
+			"enable":     true,
+			"totalGB":    0,
+			"expiryTime": 0,
+			"limitIp":    0,
+			"tgId":       0,
+		},
+		"inboundIds": []int{inboundID},
 	}
-	settings, err := json.Marshal(map[string]any{"clients": []any{clientObj}})
-	if err != nil {
-		return fmt.Errorf("marshal client settings: %w", err)
-	}
-	body := map[string]any{"id": inboundID, "settings": string(settings)}
 
-	r, err := c.post(ctx, "/panel/api/inbounds/addClient", body)
+	r, err := c.post(ctx, "/panel/api/clients/add", body)
 	if err != nil {
 		return err
 	}
@@ -117,10 +115,11 @@ func (c *Client) AddClient(ctx context.Context, inboundID int, clientUUID, email
 	return nil
 }
 
-// DelClient removes a client (by UUID) from the given inbound. A "not found"
-// response is treated as success so the call is idempotent.
-func (c *Client) DelClient(ctx context.Context, inboundID int, clientUUID string) error {
-	path := fmt.Sprintf("/panel/api/inbounds/%d/delClient/%s", inboundID, clientUUID)
+// DelClient removes a client by email from every inbound it is attached to
+// (POST /panel/api/clients/del/:email, 3x-ui >= 3.1). A "not found" response is
+// treated as success so the call is idempotent.
+func (c *Client) DelClient(ctx context.Context, email string) error {
+	path := "/panel/api/clients/del/" + url.PathEscape(email)
 	r, err := c.post(ctx, path, map[string]any{})
 	if err != nil {
 		return err
@@ -179,10 +178,10 @@ func (s *Syncer) AddClient(ctx context.Context, node model.Node, clientUUID, ema
 	return c.AddClient(ctx, node.PanelInboundID, clientUUID, email, node.Flow)
 }
 
-func (s *Syncer) DelClient(ctx context.Context, node model.Node, clientUUID string) error {
+func (s *Syncer) DelClient(ctx context.Context, node model.Node, email string) error {
 	c, ok := s.clientFor(node)
 	if !ok {
 		return nil
 	}
-	return c.DelClient(ctx, node.PanelInboundID, clientUUID)
+	return c.DelClient(ctx, email)
 }
