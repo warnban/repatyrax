@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tyrax.R
 import com.tyrax.domain.model.VpnState
 import com.tyrax.presentation.components.GlitchText
+import com.tyrax.presentation.components.MatrixRainBackground
 import com.tyrax.presentation.theme.TyraxColors
 import com.tyrax.presentation.theme.TyraxTypography
 import com.v2ray.ang.service.TProxyService
@@ -175,6 +176,15 @@ fun MainScreen(
             .fillMaxSize()
             .background(TyraxColors.Black),
     ) {
+        // Ambient red "digital rain" behind everything while the tunnel is active.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = uiState.vpnState is VpnState.Connected,
+            enter   = androidx.compose.animation.fadeIn(tween(800)),
+            exit    = androidx.compose.animation.fadeOut(tween(400)),
+        ) {
+            MatrixRainBackground(modifier = Modifier.fillMaxSize())
+        }
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
@@ -186,7 +196,7 @@ fun MainScreen(
             // ── TOP ZONE — status ──────────────────────────────────────────────
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 72.dp),
+                modifier = Modifier.padding(top = 48.dp),
             ) {
                 Text(
                     text  = stringResource(R.string.label_status),
@@ -233,6 +243,15 @@ fun MainScreen(
                         text  = stringResource(R.string.label_ping_ms, uiState.pingMs),
                         style = TyraxTypography.accent,
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text  = stringResource(
+                            R.string.label_speed,
+                            formatRate(uiState.downBps),
+                            formatRate(uiState.upBps),
+                        ),
+                        style = TyraxTypography.label,
+                    )
                 } else {
                     Text(
                         text     = stringResource(R.string.label_node_none),
@@ -275,6 +294,16 @@ fun MainScreen(
                 }
             }
         }
+    }
+}
+
+/** Human-readable throughput: B/S, KB/S or MB/S with one decimal. */
+private fun formatRate(bytesPerSec: Long): String {
+    val kb = bytesPerSec / 1024.0
+    return when {
+        kb < 1.0 -> "$bytesPerSec B/S"
+        kb < 1024.0 -> "%.0f KB/S".format(kb)
+        else -> "%.1f MB/S".format(kb / 1024.0)
     }
 }
 

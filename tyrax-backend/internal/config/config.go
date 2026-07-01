@@ -9,6 +9,7 @@ type Config struct {
 	JWTSecret           string
 	DatabaseURL         string
 	TelegramToken       string
+	TelegramProxy       string
 	TelegramBotURL      string
 	TelegramBotUsername string
 	SupportEmail        string
@@ -26,6 +27,7 @@ func Load() *Config {
 		JWTSecret:           getEnv("JWT_SECRET", "change-me-in-production"),
 		DatabaseURL:         getEnv("DATABASE_URL", "postgres://tyrax:tyrax@localhost:5432/tyrax?sslmode=disable"),
 		TelegramToken:       getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramProxy:       getEnv("TELEGRAM_PROXY", ""),
 		TelegramBotURL:      getEnv("TELEGRAM_BOT_URL", "https://t.me/tyraxvpnbot"),
 		TelegramBotUsername: getEnv("TELEGRAM_BOT_USERNAME", "tyraxvpnbot"),
 		SupportEmail:        getEnv("SUPPORT_EMAIL", "support@tyrax.app"),

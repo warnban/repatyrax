@@ -25,7 +25,7 @@ object TunnelHealth {
     // A tiny "204 No Content" endpoint: minimal payload, widely reachable, fast.
     private const val PROBE_URL = "https://www.gstatic.com/generate_204"
 
-    private const val TIMEOUT_SECONDS = 6L
+    private const val TIMEOUT_SECONDS = 10L
 
     @Volatile
     private var client: OkHttpClient? = null

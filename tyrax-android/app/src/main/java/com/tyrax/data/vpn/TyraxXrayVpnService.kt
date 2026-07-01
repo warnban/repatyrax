@@ -10,6 +10,7 @@ import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -19,8 +20,11 @@ import com.tyrax.domain.model.VpnState
 import com.v2ray.ang.service.TProxyService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import libv2ray.CoreCallbackHandler
 import libv2ray.CoreController
@@ -45,6 +49,10 @@ class TyraxXrayVpnService : VpnService() {
     private var tun2socksRunning: Boolean = false
     private var codename: String = "—"
 
+    // Passive telemetry (ping + throughput). Read-only w.r.t. the tunnel.
+    private var statsJob: Job? = null
+    private var socksPort: Int = DEFAULT_SOCKS_PORT
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand action=${intent?.action} flags=$flags startId=$startId")
         when (intent?.action) {
@@ -55,6 +63,7 @@ class TyraxXrayVpnService : VpnService() {
             ACTION_CONNECT -> {
                 val configJson = intent.getStringExtra(EXTRA_CONFIG_JSON)
                 val socksPort = intent.getIntExtra(EXTRA_SOCKS_PORT, DEFAULT_SOCKS_PORT)
+                this.socksPort = socksPort
                 codename = intent.getStringExtra(EXTRA_CODENAME) ?: "—"
                 Log.d(TAG, "onStartCommand, config length=${configJson?.length ?: 0}")
                 Log.d(TAG, "ACTION_CONNECT codename=$codename socksPort=$socksPort")
@@ -108,6 +117,7 @@ class TyraxXrayVpnService : VpnService() {
                 protocol = "vless",
                 pingMs = 0,
             )
+            startStatsPolling()
         } catch (e: Exception) {
             Log.e(TAG, "startTunnel failed", e)
             fail(e.message ?: "CONNECTION FAILED. NODE UNAVAILABLE.")
@@ -201,6 +211,9 @@ class TyraxXrayVpnService : VpnService() {
     }
 
     private fun stopTunnel() {
+        statsJob?.cancel()
+        statsJob = null
+        TunnelStatsBus.reset()
         scope.launch {
             if (tun2socksRunning) {
                 runCatching { TProxyService.TProxyStopService() }
@@ -228,6 +241,9 @@ class TyraxXrayVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        statsJob?.cancel()
+        statsJob = null
+        TunnelStatsBus.reset()
         scope.cancel()
         if (tun2socksRunning) {
             runCatching { TProxyService.TProxyStopService() }
@@ -268,19 +284,7 @@ class TyraxXrayVpnService : VpnService() {
             )
         }
 
-        val pending = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("TYRAX")
-            .setContentText("TUNNEL ACTIVE")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setOngoing(true)
-            .setContentIntent(pending)
-            .build()
+        val notification = buildNotification("BREACHING NETWORK…")
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
@@ -288,6 +292,94 @@ class TyraxXrayVpnService : VpnService() {
             0
         }
         ServiceCompat.startForeground(this, NOTIF_ID, notification, type)
+    }
+
+    /** Builds the ongoing tunnel notification with the given status/telemetry line. */
+    private fun buildNotification(contentText: String): Notification {
+        val pending = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("TYRAX · ACCESS GRANTED")
+            .setContentText(contentText)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(pending)
+            .build()
+    }
+
+    private fun updateNotification(contentText: String) {
+        runCatching {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm.notify(NOTIF_ID, buildNotification(contentText))
+        }
+    }
+
+    /**
+     * Passive telemetry loop. Reads cumulative hev counters once a second to derive
+     * instantaneous throughput and probes latency through the SOCKS inbound every
+     * few seconds. Publishes to [TunnelStatsBus] (for the UI) and refreshes the
+     * ongoing notification. It NEVER mutates the tunnel — pure observation.
+     */
+    private fun startStatsPolling() {
+        statsJob?.cancel()
+        statsJob = scope.launch {
+            var lastTx = 0L
+            var lastRx = 0L
+            var lastAt = SystemClock.elapsedRealtime()
+            var firstSample = true
+            var pingMs = 0
+            var tick = 0
+
+            while (isActive) {
+                delay(POLL_INTERVAL_MS)
+                val sample = runCatching { TProxyService.TProxyGetStats() }.getOrNull()
+                if (sample == null || sample.size < 2) continue
+
+                val tx = sample[0]
+                val rx = sample[1]
+                val now = SystemClock.elapsedRealtime()
+                val deltaMs = (now - lastAt).coerceAtLeast(1)
+
+                val upBps = if (firstSample) 0L else ((tx - lastTx) * 1000 / deltaMs).coerceAtLeast(0)
+                val downBps = if (firstSample) 0L else ((rx - lastRx) * 1000 / deltaMs).coerceAtLeast(0)
+
+                lastTx = tx
+                lastRx = rx
+                lastAt = now
+                firstSample = false
+
+                // Latency probe is heavier — run it every few ticks.
+                if (tick % PING_EVERY_TICKS == 0) {
+                    val result = TunnelHealth.probe(socksPort)
+                    if (result.ok) pingMs = result.elapsedMs.toInt().coerceIn(0, 9999)
+                }
+                tick++
+
+                TunnelStatsBus.stats.value = TunnelStatsBus.Stats(
+                    pingMs = pingMs,
+                    downBps = downBps,
+                    upBps = upBps,
+                )
+
+                updateNotification(
+                    "$codename · ${pingMs}ms · ↓ ${formatRate(downBps)}  ↑ ${formatRate(upBps)}",
+                )
+            }
+        }
+    }
+
+    /** Human-readable throughput: B/S, KB/S or MB/S with one decimal. */
+    private fun formatRate(bytesPerSec: Long): String {
+        val kb = bytesPerSec / 1024.0
+        return when {
+            kb < 1.0 -> "$bytesPerSec B/S"
+            kb < 1024.0 -> "%.0f KB/S".format(kb)
+            else -> "%.1f MB/S".format(kb / 1024.0)
+        }
     }
 
     companion object {
@@ -301,6 +393,10 @@ class TyraxXrayVpnService : VpnService() {
         private const val CHANNEL_ID = "tyrax_protocol"
         private const val NOTIF_ID = 0x7A
         private const val DEFAULT_SOCKS_PORT = 10808
+
+        // Telemetry cadence: sample throughput every second, probe latency less often.
+        private const val POLL_INTERVAL_MS = 1_000L
+        private const val PING_EVERY_TICKS = 4
 
         private const val TUN_MTU = 1500
         private const val TUN_ADDRESS = "10.10.0.2"

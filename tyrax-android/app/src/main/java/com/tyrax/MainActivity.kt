@@ -6,6 +6,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -36,12 +37,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             TyraxTheme {
                 val navController = rememberNavController()
+                // Outer black surface fills the whole window (behind the transparent
+                // status bar), while content is inset so it never overlaps the clock,
+                // battery and signal icons.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(TyraxColors.Black),
                 ) {
-                    TyraxNavGraph(navController = navController)
+                    Box(modifier = Modifier.statusBarsPadding()) {
+                        TyraxNavGraph(navController = navController)
+                    }
                 }
             }
         }

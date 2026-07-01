@@ -3,6 +3,7 @@ package com.tyrax.presentation.screens.main
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tyrax.data.vpn.TunnelStatsBus
 import com.tyrax.domain.model.VpnState
 import com.tyrax.domain.repository.VpnRepository
 import com.tyrax.domain.usecase.ConnectionSupervisor
@@ -24,6 +25,9 @@ data class MainUiState(
     val pingMs: Int = 0,
     val trafficIn: Long = 0,
     val trafficOut: Long = 0,
+    // Live throughput (bytes/sec) from the passive telemetry poller.
+    val downBps: Long = 0,
+    val upBps: Long = 0,
     // Subscription info for FREE-tier traffic counter.
     val tier: String = "FREE",
     val trafficLimitBytes: Long = 3L * 1024 * 1024 * 1024,  // 3 GB default for FREE
@@ -65,9 +69,17 @@ class MainViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, MainUiState())
 
+    // Live ping/throughput is merged here so it updates the UI WITHOUT creating a
+    // new VpnState instance (which would re-trigger the connection glitch animation).
     val uiState: StateFlow<MainUiState> =
-        combine(_vpnBase, _tier) { base, tier ->
-            base.copy(tier = tier)
+        combine(_vpnBase, _tier, TunnelStatsBus.stats) { base, tier, stats ->
+            val connected = base.vpnState is VpnState.Connected
+            base.copy(
+                tier    = tier,
+                pingMs  = if (connected) stats.pingMs else base.pingMs,
+                downBps = if (connected) stats.downBps else 0,
+                upBps   = if (connected) stats.upBps else 0,
+            )
         }.stateIn(
             scope        = viewModelScope,
             started      = SharingStarted.WhileSubscribed(5_000),

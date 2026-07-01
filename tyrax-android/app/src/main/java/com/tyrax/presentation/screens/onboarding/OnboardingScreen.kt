@@ -98,12 +98,6 @@ private fun SlideOne() {
             .fillMaxSize()
             .padding(horizontal = 32.dp),
     ) {
-        Text(
-            text     = stringResource(R.string.onboarding_system_alert),
-            style    = TyraxTypography.label,
-            modifier = Modifier.padding(bottom = 32.dp),
-        )
-
         words.forEachIndexed { i, word ->
             Text(
                 text      = word,
@@ -127,15 +121,6 @@ private fun SlideTwo() {
         Text(
             text      = stringResource(R.string.onboarding_slide2_title),
             style     = TyraxTypography.display,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text      = stringResource(R.string.onboarding_slide2_sub),
-            style     = TyraxTypography.body,
-            color     = TyraxColors.SubText,
             textAlign = TextAlign.Center,
         )
     }

@@ -40,6 +40,7 @@ object XrayConfigPatcher {
 
         val outbounds = root.optJSONArray("outbounds") ?: JSONArray().also { root.put("outbounds", it) }
         setPacketEncoding(outbounds)
+        tuneXhttpMux(outbounds)
         ensureDnsOutbound(outbounds)
 
         root.put(
@@ -95,6 +96,34 @@ object XrayConfigPatcher {
                     users.optJSONObject(k)?.put("packetEncoding", "xudp")
                 }
             }
+        }
+    }
+
+    /**
+     * Forces XHTTP to reuse a SINGLE multiplexed connection to the node instead of
+     * spawning dozens. On mobile carriers, many parallel TLS connections to one
+     * foreign datacenter IP (a) self-congest the radio link and (b) fingerprint as
+     * a VPN, so the carrier throttles them to a crawl (observed: 70+ conns collapsing
+     * to cwnd=1 with heavy retransmit). One persistent H2 connection carrying all
+     * streams looks like a browser talking to apple.com and survives.
+     */
+    private fun tuneXhttpMux(outbounds: JSONArray) {
+        for (i in 0 until outbounds.length()) {
+            val outbound = outbounds.optJSONObject(i) ?: continue
+            val stream = outbound.optJSONObject("streamSettings") ?: continue
+            if (stream.optString("network") != "xhttp") continue
+            val xhttp = stream.optJSONObject("xhttpSettings") ?: continue
+            val extra = xhttp.optJSONObject("extra") ?: JSONObject().also { xhttp.put("extra", it) }
+            extra.put(
+                "xmux",
+                JSONObject()
+                    .put("maxConcurrency", 0)
+                    .put("maxConnections", 1)
+                    .put("cMaxReuseTimes", 0)
+                    .put("hMaxRequestTimes", "1000-5000")
+                    .put("hMaxReusableSecs", "1800-3000")
+                    .put("hKeepAlivePeriod", 0),
+            )
         }
     }
 

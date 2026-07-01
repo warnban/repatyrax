@@ -285,6 +285,50 @@ Tuning constants (ConnectionSupervisor.companion): CONNECT_TIMEOUT 25s,
 PERMISSION_WAIT 120s, INITIAL_GRACE 6s, PROBE_INTERVAL 15s, THROTTLE 4.5s,
 MAX_FAILS 2, SWITCH_DELAY 1.2s, BACKOFF 8s. Adjust after RU-mobile field testing.
 
+### 10. RESOLVED — tunnel dead on RU mobile: XHTTP connection explosion (2026-07-01)
+Symptom: on a real RU phone (mobile/LTE) the tunnel connected but NOTHING loaded —
+pages hung, "reconnecting". The SAME config on a Windows PC in RU loaded real pages
+(google/youtube/cloudflare, MBs) in <1s. So config, node, and Xray core were proven
+fine; the failure was phone-specific.
+
+Diagnosis (via adb + `ss -tin` on the device):
+- Node reachable from the phone's physical network: 0% ping loss, 40–70ms, and a
+  single direct download from the node IP (reality-fallback to apple.com) ran fine
+  at ~45 KB/s. So the phone↔node path was healthy for ONE connection.
+- With the tunnel UP, Xray opened **31–76 parallel TCP connections** to the node
+  (XHTTP xmux spawns a new client whenever `maxConcurrency` is hit). On the mobile
+  radio those connections collapsed: `cwnd:1`, `retrans:5–7`, `rto:9s`, data stuck
+  in Send-Q. Two compounding causes:
+    1. Many simultaneous TLS connections to one foreign datacenter IP fingerprint as
+       a VPN → carrier throttles them to a crawl.
+    2. Dozens of parallel flows self-congest the radio link.
+- MSS/MTU black hole was ALSO present (rmnet advertises 1500 but GTP path is smaller,
+  ICMP frag-needed blocked) — addressed defensively but was NOT the primary cause.
+
+Fix (TWO parts, both shipped):
+- CLIENT (primary): `XrayConfigPatcher.tuneXhttpMux()` injects into the proxy
+  outbound's `xhttpSettings.extra.xmux`:
+    `maxConcurrency:0, maxConnections:1, cMaxReuseTimes:0,
+     hMaxRequestTimes:"1000-5000", hMaxReusableSecs:"1800-3000", hKeepAlivePeriod:0`
+  → ONE persistent multiplexed H2 connection carrying all streams (looks like a
+  browser talking to apple.com). Result: 1 connection, `cwnd:10`, 0 retransmit;
+  google 200 in 0.28s, youtube/cloudflare MBs through the tunnel. CONFIRMED WORKING
+  on the user's phone.
+- NODE (defensive): TCP MSS clamp to 1280 on the VLESS port, made persistent and
+  baked into `deploy-node.sh` ([3b/6], `iptables-persistent`, `TYRAX_MSS=1280`):
+    `iptables -t mangle -A PREROUTING -p tcp --dport 443 --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1280`
+    `iptables -t mangle -A OUTPUT     -p tcp --sport 443 --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1280`
+
+Also in this session: reverted Xray `loglevel` to `warning` (debug logging at RU
+mobile traffic volume was itself I/O-thrashing the tunnel); relaxed the §9 supervisor
+so a busy-but-live tunnel is not torn down (INITIAL_GRACE 12s, PROBE_INTERVAL 30s,
+THROTTLE 9s, MAX_FAILS 4) and TunnelHealth timeout 6s→10s. libv2ray.aar aligned to a
+current Xray core (v26.x) matching the node.
+
+OPS NOTE: every node needs the MSS clamp. `deploy-node.sh` now does it automatically;
+for the already-live FI-01 node it was applied by hand + saved via `iptables-save >
+/etc/iptables/rules.v4`. Apply the same on PL-01 and any future node.
+
 ### NEXT (requires a rented server — NOT done yet)
 - Rent VPS, install 3x-ui, create XHTTP+Reality inbound per §3.3 template.
 - Insert matching node row into `nodes` (host/port/reality keys/shortId/sni/dest/

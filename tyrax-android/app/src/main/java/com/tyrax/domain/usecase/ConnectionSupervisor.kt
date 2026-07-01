@@ -198,10 +198,13 @@ class ConnectionSupervisor @Inject constructor(
 
         private const val CONNECT_TIMEOUT_MS = 25_000L
         private const val PERMISSION_WAIT_MS = 120_000L
-        private const val INITIAL_GRACE_MS = 6_000L
-        private const val PROBE_INTERVAL_MS = 15_000L
-        private const val THROTTLE_MS = 4_500L
-        private const val MAX_FAILS = 2
+        // Generous grace + interval so a busy-but-live tunnel (dozens of concurrent
+        // background app connections) is never mistaken for dead. Only a sustained
+        // run of failures (real node death / hard DPI block) triggers a switch.
+        private const val INITIAL_GRACE_MS = 12_000L
+        private const val PROBE_INTERVAL_MS = 30_000L
+        private const val THROTTLE_MS = 9_000L
+        private const val MAX_FAILS = 4
         private const val SWITCH_DELAY_MS = 1_200L
         private const val BACKOFF_MS = 8_000L
     }

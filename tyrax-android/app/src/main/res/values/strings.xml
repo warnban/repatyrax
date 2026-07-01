@@ -45,6 +45,7 @@
     <string name="label_node_status">NODE: %1$s · OPEN</string>
     <string name="label_node_none">NODE: —</string>
     <string name="label_ping_ms">%1$dms</string>
+    <string name="label_speed">↓ %1$s   ↑ %2$s</string>
     <string name="label_traffic">TRAFFIC: %1$s GB / %2$s GB</string>
 
     <!-- Node statuses -->
@@ -141,9 +142,7 @@
     <string name="settings_telegram_linked">✓ Telegram привязан</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_system_alert">SYSTEM ALERT</string>
-    <string name="onboarding_slide2_title">МЫ ЭТО УБИРАЕМ</string>
-    <string name="onboarding_slide2_sub">С нами решаешь — ты.</string>
+    <string name="onboarding_slide2_title">С НАМИ РЕШАЕШЬ — ТЫ</string>
     <string name="onboarding_slide3_title">БЕЗ\nРАЗРЕШЕНИЯ</string>
     <string name="onboarding_get_access">ПОЛУЧИТЬ ДОСТУП</string>
     <string name="onboarding_bot_step1_prefix">1. Открой</string>
@@ -151,9 +150,9 @@
     <string name="onboarding_bot_step2">2. Нажми START — аккаунт создастся автоматически</string>
     <string name="onboarding_bot_step3">3. Вернись сюда и войди</string>
     <string-array name="onboarding_slide1_words">
-        <item>ОНИ РЕШАЮТ,</item>
-        <item>ЧТО ТЕБЕ</item>
-        <item>МОЖНО ВИДЕТЬ</item>
+        <item>ОНИ ХОТЯТ</item>
+        <item>РЕШАТЬ ЧТО</item>
+        <item>НАМ СМОТРЕТЬ</item>
     </string-array>
 
     <!-- Auth -->

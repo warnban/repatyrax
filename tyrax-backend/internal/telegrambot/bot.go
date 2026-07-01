@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,29 @@ import (
 	"github.com/tyrax/tyrax-backend/internal/repository"
 	"github.com/tyrax/tyrax-backend/internal/service"
 )
+
+// newBotAPI builds the Telegram client, optionally routing all API calls through
+// TELEGRAM_PROXY. The backend runs on a Russian host where api.telegram.org is
+// blocked by the ISP/RKN, so outbound Telegram traffic must egress via a proxy on
+// a foreign node (e.g. socks5://ip:1080 or http://ip:8888). net/http supports both
+// http(s):// and socks5:// proxy URLs natively — no extra dependency needed.
+func newBotAPI(cfg *config.Config) (*tgbotapi.BotAPI, error) {
+	if cfg.TelegramProxy == "" {
+		return tgbotapi.NewBotAPI(cfg.TelegramToken)
+	}
+	proxyURL, err := url.Parse(cfg.TelegramProxy)
+	if err != nil {
+		return nil, fmt.Errorf("parse TELEGRAM_PROXY: %w", err)
+	}
+	client := &http.Client{
+		Timeout: (updateTimeoutSec + 15) * time.Second,
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		},
+	}
+	slog.Info("telegram bot: using proxy", slog.String("scheme", proxyURL.Scheme), slog.String("host", proxyURL.Host))
+	return tgbotapi.NewBotAPIWithClient(cfg.TelegramToken, tgbotapi.APIEndpoint, client)
+}
 
 const (
 	updateTimeoutSec = 60
@@ -105,7 +130,7 @@ func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paym
 		return
 	}
 
-	api, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
+	api, err := newBotAPI(cfg)
 	if err != nil {
 		slog.Error("telegram bot: init failed", slog.String("error", err.Error()))
 		return
