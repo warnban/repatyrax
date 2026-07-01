@@ -49,11 +49,17 @@ func main() {
 	cpClient := cryptopay.New(cfg.CryptoPayToken)
 
 	// ── Services ─────────────────────────────────────────────────────────────
-	// Panel syncer registers per-device VLESS UUIDs on each node's 3x-ui inbound.
+	// Panel syncer registers per-device VLESS UUIDs on each node's 3x-ui inbound
+	// and also reads per-device traffic counters for FREE-tier metering.
 	panelSyncer := threexui.NewSyncer()
-	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer)
+	trafficSvc := service.NewTrafficService(userRepo, deviceRepo, nodeRepo, panelSyncer)
+	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer, trafficSvc)
 	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient)
 	inviteSvc  := service.NewInviteService(userRepo, inviteRepo)
+
+	// Traffic accounting sweep — reads node panels, credits usage, blocks FREE
+	// identities over quota. Fail-open: never affects the tunnel on error.
+	go trafficSvc.RunLoop(ctx)
 
 	// ── Telegram bot worker ────────────────────────────────────────────────────
 	// Full bot: auth deep links, account, config delivery, devices, payments.
@@ -63,7 +69,7 @@ func main() {
 	// ── Handlers ─────────────────────────────────────────────────────────────
 	authH    := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.TelegramBotUsername)
 	vpnH     := handler.NewVPNHandler(vpnSvc)
-	paymentH := handler.NewPaymentHandler(paymentSvc, inviteSvc, deviceRepo, userRepo)
+	paymentH := handler.NewPaymentHandler(paymentSvc, inviteSvc, deviceRepo, userRepo, trafficSvc)
 
 	// ── App ───────────────────────────────────────────────────────────────────
 	app := fiber.New(fiber.Config{

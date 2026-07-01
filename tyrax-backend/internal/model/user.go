@@ -21,6 +21,13 @@ type User struct {
 	SubscriptionTier SubscriptionTier `db:"subscription_tier" json:"subscription_tier"`
 	SubscriptionEnd  *time.Time       `db:"subscription_end" json:"subscription_end,omitempty"`
 	CreatedAt        time.Time        `db:"created_at" json:"created_at"`
+
+	// Traffic metering (FREE-tier quota). Paid tiers ignore these.
+	TrafficUsedBytes   int64      `db:"traffic_used_bytes" json:"traffic_used_bytes"`
+	TrafficPeriodStart time.Time  `db:"traffic_period_start" json:"traffic_period_start"`
+	// BlockedUntil is non-nil while a FREE user is locked out after exhausting
+	// their quota; the tunnel stays blocked until this instant passes.
+	BlockedUntil *time.Time `db:"blocked_until" json:"blocked_until,omitempty"`
 }
 
 type Node struct {

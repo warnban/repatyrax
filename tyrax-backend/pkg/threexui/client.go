@@ -55,6 +55,16 @@ type apiResp struct {
 	Msg     string `json:"msg"`
 }
 
+// clientTrafficResp is the shape of GET /panel/api/inbounds/getClientTraffics/:email.
+// obj is null when the email has no recorded stats yet.
+type clientTrafficResp struct {
+	Success bool `json:"success"`
+	Obj     *struct {
+		Up   int64 `json:"up"`
+		Down int64 `json:"down"`
+	} `json:"obj"`
+}
+
 // post sends a JSON body to an API path with the Bearer token attached.
 func (c *Client) post(ctx context.Context, path string, body any) (*apiResp, error) {
 	payload, err := json.Marshal(body)
@@ -82,6 +92,34 @@ func (c *Client) post(ctx context.Context, path string, body any) (*apiResp, err
 		return nil, fmt.Errorf("panel %s: non-JSON response (status %d) — check panel_token/panel_url", path, resp.StatusCode)
 	}
 	return &r, nil
+}
+
+// GetClientTraffic returns the cumulative up+down bytes recorded for a client
+// email on this panel (GET /panel/api/inbounds/getClientTraffics/:email). A
+// missing email (obj == null) is not an error — it returns 0.
+func (c *Client) GetClientTraffic(ctx context.Context, email string) (int64, error) {
+	path := "/panel/api/inbounds/getClientTraffics/" + url.PathEscape(email)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return 0, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("panel %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	var r clientTrafficResp
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return 0, fmt.Errorf("panel %s: non-JSON response (status %d) — check panel_token/panel_url", path, resp.StatusCode)
+	}
+	if !r.Success || r.Obj == nil {
+		return 0, nil
+	}
+	return r.Obj.Up + r.Obj.Down, nil
 }
 
 // AddClient registers a VLESS client (UUID + email) and attaches it to the given
@@ -184,4 +222,14 @@ func (s *Syncer) DelClient(ctx context.Context, node model.Node, email string) e
 		return nil
 	}
 	return c.DelClient(ctx, email)
+}
+
+// ClientTraffic reads a device's cumulative traffic (bytes) from a node's panel.
+// Nodes without panel credentials report 0 with no error (nothing to meter).
+func (s *Syncer) ClientTraffic(ctx context.Context, node model.Node, email string) (int64, error) {
+	c, ok := s.clientFor(node)
+	if !ok {
+		return 0, nil
+	}
+	return c.GetClientTraffic(ctx, email)
 }

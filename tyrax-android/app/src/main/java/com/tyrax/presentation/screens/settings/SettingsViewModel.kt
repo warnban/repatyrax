@@ -102,4 +102,20 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(loggedOut = true) }
         }
     }
+
+    // ── About / legal ────────────────────────────────────────────────────────
+    fun openPrivacyPolicy() = openUrl(PRIVACY_URL)
+    fun openTerms() = openUrl(TERMS_URL)
+    fun openSupport() = openUrl(SUPPORT_URL)
+
+    private fun openUrl(url: String) {
+        viewModelScope.launch { _events.send(SettingsUiEvent.OpenUrl(url)) }
+    }
+
+    private companion object {
+        // TODO: point these at the real hosted documents before release.
+        const val PRIVACY_URL = "https://tyrax.app/privacy"
+        const val TERMS_URL = "https://tyrax.app/terms"
+        const val SUPPORT_URL = "https://t.me/tyraxvpnbot"
+    }
 }

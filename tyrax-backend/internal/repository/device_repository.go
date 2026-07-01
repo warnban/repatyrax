@@ -14,4 +14,8 @@ type DeviceRepository interface {
 	FindByPublicKey(ctx context.Context, publicKey string) (*model.Device, error)
 	FindByUserAndName(ctx context.Context, userID, name string) (*model.Device, error)
 	Delete(ctx context.Context, id, userID string) error
+
+	// Traffic accounting.
+	ListForAccounting(ctx context.Context) ([]model.Device, error)
+	UpdateLastTraffic(ctx context.Context, deviceID string, total int64) error
 }

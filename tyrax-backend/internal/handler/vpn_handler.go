@@ -44,6 +44,9 @@ func (h *VPNHandler) Connect(c *fiber.Ctx) error {
 
 	cfg, err := h.vpnService.Connect(c.Context(), userID, req.Name, req.Codename)
 	if err != nil {
+		if errors.Is(err, service.ErrTrafficLimit) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "error", "message": "TRAFFIC LIMIT REACHED"})
+		}
 		if errors.Is(err, service.ErrDeviceLimitReached) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "error", "message": "DEVICE LIMIT REACHED"})
 		}

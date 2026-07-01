@@ -136,6 +136,44 @@ func (r *deviceRepository) FindByUserAndName(ctx context.Context, userID, name s
 	return &d, nil
 }
 
+// ListForAccounting returns the minimal device fields the traffic sweep needs:
+// id, user_id and the last cumulative counter read from the panel.
+func (r *deviceRepository) ListForAccounting(ctx context.Context) ([]model.Device, error) {
+	ctx, cancel := context.WithTimeout(ctx, deviceQueryTimeout)
+	defer cancel()
+
+	rows, err := r.db.Query(ctx, "SELECT id, user_id, last_traffic_bytes FROM devices")
+	if err != nil {
+		return nil, fmt.Errorf("list devices for accounting: %w", err)
+	}
+	defer rows.Close()
+
+	devices := make([]model.Device, 0)
+	for rows.Next() {
+		var d model.Device
+		if err := rows.Scan(&d.ID, &d.UserID, &d.LastTrafficBytes); err != nil {
+			return nil, fmt.Errorf("scan device accounting row: %w", err)
+		}
+		devices = append(devices, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate device accounting rows: %w", err)
+	}
+	return devices, nil
+}
+
+// UpdateLastTraffic records the latest cumulative counter for a device.
+func (r *deviceRepository) UpdateLastTraffic(ctx context.Context, deviceID string, total int64) error {
+	ctx, cancel := context.WithTimeout(ctx, deviceQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx, "UPDATE devices SET last_traffic_bytes = $1 WHERE id = $2", total, deviceID)
+	if err != nil {
+		return fmt.Errorf("update device last traffic: %w", err)
+	}
+	return nil
+}
+
 func (r *deviceRepository) Delete(ctx context.Context, id, userID string) error {
 	ctx, cancel := context.WithTimeout(ctx, deviceQueryTimeout)
 	defer cancel()

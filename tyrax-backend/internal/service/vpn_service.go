@@ -20,9 +20,17 @@ type PanelSyncer interface {
 	DelClient(ctx context.Context, node model.Node, email string) error
 }
 
+// TrafficGuard reports whether a user's tunnel is currently blocked (e.g. a FREE
+// identity that exhausted its quota). Implemented by *TrafficService. Optional:
+// a nil guard disables enforcement entirely (fail-open).
+type TrafficGuard interface {
+	CheckBlocked(ctx context.Context, userID string) (bool, error)
+}
+
 var (
 	ErrDeviceLimitReached = errors.New("DEVICE LIMIT REACHED")
 	ErrNodeUnavailable    = errors.New("NODE UNAVAILABLE")
+	ErrTrafficLimit       = errors.New("TRAFFIC LIMIT REACHED")
 )
 
 type DeviceConfig struct {
@@ -84,14 +92,16 @@ type vpnService struct {
 	deviceRepo repository.DeviceRepository
 	userRepo   repository.UserRepository
 	panel      PanelSyncer
+	traffic    TrafficGuard
 }
 
-func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, panel PanelSyncer) VPNService {
+func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, panel PanelSyncer, traffic TrafficGuard) VPNService {
 	return &vpnService{
 		nodeRepo:   nodeRepo,
 		deviceRepo: deviceRepo,
 		userRepo:   userRepo,
 		panel:      panel,
+		traffic:    traffic,
 	}
 }
 
@@ -226,6 +236,14 @@ func (s *vpnService) AddDevice(ctx context.Context, userID, deviceName string) (
 }
 
 func (s *vpnService) Connect(ctx context.Context, userID, deviceName, codename string) (*VPNConfig, error) {
+	// FREE-tier quota gate. Fail-open: only refuse when the guard is certain the
+	// user is blocked; any error leaves the tunnel working exactly as before.
+	if s.traffic != nil {
+		if blocked, gerr := s.traffic.CheckBlocked(ctx, userID); gerr == nil && blocked {
+			return nil, ErrTrafficLimit
+		}
+	}
+
 	node, err := s.nodeRepo.GetByCodename(ctx, codename)
 	if err != nil {
 		if errors.Is(err, repository.ErrNodeNotFound) {

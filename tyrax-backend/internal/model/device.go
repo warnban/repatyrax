@@ -10,4 +10,7 @@ type Device struct {
 	ClientIP  string    `db:"client_ip" json:"client_ip"`
 	VlessUUID string    `db:"vless_uuid" json:"vless_uuid"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// LastTrafficBytes is the cumulative up+down last read from the node panel,
+	// used only by the traffic-accounting sweep. Not exposed to clients.
+	LastTrafficBytes int64 `db:"last_traffic_bytes" json:"-"`
 }

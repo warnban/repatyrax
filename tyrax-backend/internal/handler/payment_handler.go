@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"io"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -15,6 +16,7 @@ type PaymentHandler struct {
 	inviteSvc  service.InviteService
 	deviceRepo repository.DeviceRepository
 	userRepo   repository.UserRepository
+	trafficSvc *service.TrafficService
 }
 
 func NewPaymentHandler(
@@ -22,12 +24,14 @@ func NewPaymentHandler(
 	inviteSvc service.InviteService,
 	deviceRepo repository.DeviceRepository,
 	userRepo repository.UserRepository,
+	trafficSvc *service.TrafficService,
 ) *PaymentHandler {
 	return &PaymentHandler{
 		paymentSvc: paymentSvc,
 		inviteSvc:  inviteSvc,
 		deviceRepo: deviceRepo,
 		userRepo:   userRepo,
+		trafficSvc: trafficSvc,
 	}
 }
 
@@ -108,13 +112,30 @@ func (h *PaymentHandler) GetSubscription(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "INTERNAL ERROR"})
 	}
 
+	// Traffic snapshot for the FREE-tier counter. Fail-open: on any error, emit
+	// safe defaults (unlimited=false, not blocked) so the client still renders.
+	var (
+		used, limit  int64
+		blockedUntil *time.Time
+		unlimited    bool
+	)
+	if h.trafficSvc != nil {
+		if u, l, b, unl, terr := h.trafficSvc.Snapshot(c.Context(), userID); terr == nil {
+			used, limit, blockedUntil, unlimited = u, l, b, unl
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"status": "ok",
 		"data": fiber.Map{
-			"tier":          string(user.SubscriptionTier),
-			"ends_at":       user.SubscriptionEnd,
-			"devices_count": deviceCount,
-			"devices_limit": service.DeviceLimit(user.SubscriptionTier),
+			"tier":                string(user.SubscriptionTier),
+			"ends_at":             user.SubscriptionEnd,
+			"devices_count":       deviceCount,
+			"devices_limit":       service.DeviceLimit(user.SubscriptionTier),
+			"traffic_used_bytes":  used,
+			"traffic_limit_bytes": limit,
+			"blocked_until":       blockedUntil,
+			"unlimited":           unlimited,
 		},
 	})
 }

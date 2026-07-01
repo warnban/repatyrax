@@ -48,6 +48,7 @@ import com.tyrax.R
 import com.tyrax.domain.model.VpnState
 import com.tyrax.presentation.components.GlitchText
 import com.tyrax.presentation.components.MatrixRainBackground
+import com.tyrax.presentation.components.TyraxDialog
 import com.tyrax.presentation.theme.TyraxColors
 import com.tyrax.presentation.theme.TyraxTypography
 import com.v2ray.ang.service.TProxyService
@@ -171,6 +172,32 @@ fun MainScreen(
         else                     -> TyraxColors.SubText
     }
 
+    // Device-limit prompt: shown when this device could not self-register because
+    // the tier's device slots are full. Routes the user to the tariffs screen.
+    if (uiState.deviceLimitReached) {
+        TyraxDialog(
+            title       = stringResource(R.string.dialog_device_limit_title),
+            body        = stringResource(R.string.dialog_device_limit_body),
+            confirmText = stringResource(R.string.btn_view_tariffs),
+            cancelText  = stringResource(R.string.btn_later),
+            onConfirm   = { viewModel.dismissDeviceLimit(); onNavigateToSubscription() },
+            onDismiss   = { viewModel.dismissDeviceLimit() },
+        )
+    }
+
+    // FREE quota exhausted: hard block until the 30-day window elapses. Routes
+    // the user to the tariffs screen for an unlimited upgrade.
+    if (uiState.trafficBlockedPrompt) {
+        TyraxDialog(
+            title       = stringResource(R.string.dialog_traffic_block_title),
+            body        = stringResource(R.string.dialog_traffic_block_body),
+            confirmText = stringResource(R.string.btn_view_tariffs),
+            cancelText  = stringResource(R.string.btn_later),
+            onConfirm   = { viewModel.dismissTrafficBlock(); onNavigateToSubscription() },
+            onDismiss   = { viewModel.dismissTrafficBlock() },
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -260,12 +287,18 @@ fun MainScreen(
                     )
                 }
 
-                // FREE-tier traffic counter
-                if (uiState.tier.uppercase() == "FREE") {
+                // Traffic indicator: metered bar for FREE, infinity for paid tiers.
+                if (!uiState.unlimited) {
                     Spacer(modifier = Modifier.height(16.dp))
                     TrafficCounter(
-                        usedBytes  = uiState.trafficUsedBytes,
+                        usedBytes  = uiState.usedBytes,
                         limitBytes = uiState.trafficLimitBytes,
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text  = stringResource(R.string.label_traffic_unlimited),
+                        style = TyraxTypography.label,
                     )
                 }
 

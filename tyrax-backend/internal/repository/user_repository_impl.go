@@ -16,7 +16,7 @@ import (
 const userQueryTimeout = 5 * time.Second
 
 // userColumns is the full column set scanned into model.User, in scan order.
-const userColumns = "id, email, password_hash, telegram_id, subscription_tier, subscription_end, created_at"
+const userColumns = "id, email, password_hash, telegram_id, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until"
 
 var (
 	ErrUserNotFound = errors.New("IDENTITY NOT FOUND")
@@ -55,6 +55,49 @@ func (r *userRepository) ActivateSubscription(ctx context.Context, userID, tier 
 		tier, endsAt, userID)
 	if err != nil {
 		return fmt.Errorf("activate subscription: %w", err)
+	}
+	return nil
+}
+
+// IncrementTraffic adds delta bytes to the user's current-period usage counter.
+func (r *userRepository) IncrementTraffic(ctx context.Context, userID string, delta int64) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET traffic_used_bytes = traffic_used_bytes + $1 WHERE id = $2",
+		delta, userID)
+	if err != nil {
+		return fmt.Errorf("increment traffic: %w", err)
+	}
+	return nil
+}
+
+// SetBlockedUntil locks (or, with nil, unlocks) a user's tunnel access.
+func (r *userRepository) SetBlockedUntil(ctx context.Context, userID string, until *time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET blocked_until = $1 WHERE id = $2",
+		until, userID)
+	if err != nil {
+		return fmt.Errorf("set blocked until: %w", err)
+	}
+	return nil
+}
+
+// ResetTrafficPeriod starts a fresh quota window: zeroes usage, stamps the period
+// start to now and clears any block.
+func (r *userRepository) ResetTrafficPeriod(ctx context.Context, userID string, start time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET traffic_used_bytes = 0, traffic_period_start = $1, blocked_until = NULL WHERE id = $2",
+		start, userID)
+	if err != nil {
+		return fmt.Errorf("reset traffic period: %w", err)
 	}
 	return nil
 }
@@ -199,6 +242,9 @@ func scanUser(row rowScanner) (*model.User, error) {
 		&tier,
 		&u.SubscriptionEnd,
 		&u.CreatedAt,
+		&u.TrafficUsedBytes,
+		&u.TrafficPeriodStart,
+		&u.BlockedUntil,
 	); err != nil {
 		return nil, err
 	}

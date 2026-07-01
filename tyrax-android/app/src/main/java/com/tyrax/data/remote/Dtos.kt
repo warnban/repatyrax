@@ -95,6 +95,12 @@ data class SubscriptionDto(
     @SerializedName("ends_at")       val endsAt: String? = null,
     @SerializedName("devices_count") val devicesCount: Int,
     @SerializedName("devices_limit") val devicesLimit: Int,
+    // Traffic metering. limit == -1 means unlimited (paid tiers). blockedUntil is
+    // set only while a FREE identity is locked out after exhausting its quota.
+    @SerializedName("traffic_used_bytes")  val trafficUsedBytes: Long = 0,
+    @SerializedName("traffic_limit_bytes") val trafficLimitBytes: Long = 0,
+    @SerializedName("blocked_until")       val blockedUntil: String? = null,
+    val unlimited: Boolean = false,
 )
 
 // ── Payments ──────────────────────────────────────────────────────────────────

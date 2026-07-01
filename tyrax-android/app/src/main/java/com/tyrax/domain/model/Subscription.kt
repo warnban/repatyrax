@@ -7,8 +7,15 @@ data class Subscription(
     val endsAt: String?,
     val devicesCount: Int,
     val devicesLimit: Int,
+    // Traffic metering (FREE tier). limitBytes == -1 → unlimited.
+    val usedBytes: Long = 0,
+    val limitBytes: Long = 0,
+    val unlimited: Boolean = false,
+    // Non-null while the FREE tunnel is locked out for exceeding the quota.
+    val blockedUntil: String? = null,
 ) {
     val isFree: Boolean get() = tier.uppercase() == "FREE"
+    val isBlocked: Boolean get() = blockedUntil != null
 }
 
 data class UserDevice(

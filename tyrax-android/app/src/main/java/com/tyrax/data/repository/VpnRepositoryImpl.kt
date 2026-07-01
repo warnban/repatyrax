@@ -145,6 +145,10 @@ private fun SubscriptionDto.toDomain() = Subscription(
     endsAt = endsAt,
     devicesCount = devicesCount,
     devicesLimit = devicesLimit,
+    usedBytes = trafficUsedBytes,
+    limitBytes = trafficLimitBytes,
+    unlimited = unlimited,
+    blockedUntil = blockedUntil,
 )
 
 private fun InviteDto.toDomain() = InviteRecord(id = id, inviteeId = inviteeId, status = status)

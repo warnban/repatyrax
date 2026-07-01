@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -79,6 +81,7 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(TyraxColors.Black)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp),
     ) {
         Spacer(modifier = Modifier.height(52.dp))
@@ -137,6 +140,29 @@ fun SettingsScreen(
             label   = stringResource(R.string.settings_label_devices),
             value   = uiState.devicesInfo ?: emptyValue,
             onClick = onNavigateToDevices,
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = TyraxColors.MidGray)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── О СЕРВИСЕ ─────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.settings_section_about))
+        SettingsRow(
+            label   = stringResource(R.string.settings_about_privacy),
+            value   = "",
+            onClick = { viewModel.openPrivacyPolicy() },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = TyraxColors.MidGray)
+        SettingsRow(
+            label   = stringResource(R.string.settings_about_terms),
+            value   = "",
+            onClick = { viewModel.openTerms() },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = TyraxColors.MidGray)
+        SettingsRow(
+            label   = stringResource(R.string.settings_about_support),
+            value   = stringResource(R.string.settings_about_support_value),
+            onClick = { viewModel.openSupport() },
         )
         HorizontalDivider(thickness = 0.5.dp, color = TyraxColors.MidGray)
 

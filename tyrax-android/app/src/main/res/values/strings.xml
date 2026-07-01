@@ -47,6 +47,7 @@
     <string name="label_ping_ms">%1$dms</string>
     <string name="label_speed">↓ %1$s   ↑ %2$s</string>
     <string name="label_traffic">TRAFFIC: %1$s GB / %2$s GB</string>
+    <string name="label_traffic_unlimited">TRAFFIC: ∞</string>
 
     <!-- Node statuses -->
     <string name="node_open">OPEN</string>
@@ -77,9 +78,9 @@
     <string name="sub_badge_current">ТЕКУЩИЙ ТАРИФ</string>
     <string name="sub_btn_unlock">РАЗБЛОКИРОВАТЬ</string>
     <string name="sub_price_from">от %1$d ₽/мес</string>
-    <string name="sub_features_core">2 УСТРОЙСТВА · БЕЗЛИМИТ · ВСЕ НОДЫ</string>
-    <string name="sub_features_shadow">5 УСТРОЙСТВ · ПРИОРИТЕТ · БЕЗЛИМИТ · ВСЕ НОДЫ</string>
-    <string name="sub_features_dominion">10 УСТРОЙСТВ · ПРИОРИТЕТ #1 · ПРИГЛАСИТЬ 3 АККАУНТА</string>
+    <string name="sub_features_core">2 УСТРОЙСТВА · БЕЗЛИМИТНЫЙ ТРАФИК · ВСЕ ЛОКАЦИИ</string>
+    <string name="sub_features_shadow">5 УСТРОЙСТВ · ПОВЫШЕННАЯ СКОРОСТЬ · БЕЗЛИМИТНЫЙ ТРАФИК · ВСЕ ЛОКАЦИИ</string>
+    <string name="sub_features_dominion">10 УСТРОЙСТВ · ПОВЫШЕННАЯ СКОРОСТЬ · БЕЗЛИМИТНЫЙ ТРАФИК · ВСЕ ЛОКАЦИИ · ПРЕМИУМ ПОДДЕРЖКА</string>
 
     <!-- Payment screen -->
     <string name="payment_title">ОПЛАТА</string>
@@ -102,19 +103,21 @@
 
     <string-array name="features_core">
         <item>2 УСТРОЙСТВА</item>
-        <item>БЕЗЛИМИТ</item>
-        <item>ВСЕ НОДЫ</item>
+        <item>БЕЗЛИМИТНЫЙ ТРАФИК</item>
+        <item>ВСЕ ЛОКАЦИИ</item>
     </string-array>
     <string-array name="features_shadow">
         <item>5 УСТРОЙСТВ</item>
-        <item>ПРИОРИТЕТ</item>
-        <item>ВСЕ НОДЫ</item>
+        <item>ПОВЫШЕННАЯ СКОРОСТЬ</item>
+        <item>БЕЗЛИМИТНЫЙ ТРАФИК</item>
+        <item>ВСЕ ЛОКАЦИИ</item>
     </string-array>
     <string-array name="features_dominion">
         <item>10 УСТРОЙСТВ</item>
-        <item>ПРИОРИТЕТ #1</item>
-        <item>ПРИГЛАСИТЬ 3 АККАУНТА</item>
-        <item>ПОДДЕРЖКА</item>
+        <item>ПОВЫШЕННАЯ СКОРОСТЬ</item>
+        <item>БЕЗЛИМИТНЫЙ ТРАФИК</item>
+        <item>ВСЕ ЛОКАЦИИ</item>
+        <item>ПРЕМИУМ ПОДДЕРЖКА</item>
     </string-array>
 
     <!-- Devices -->
@@ -126,6 +129,12 @@
     <string name="dialog_invite_title">INVITE ACCOUNT</string>
     <string name="dialog_remove_device_title">REMOVE DEVICE?</string>
     <string name="dialog_remove_invite_title">REMOVE INVITE?</string>
+    <string name="dialog_device_limit_title">ЛИМИТ УСТРОЙСТВ</string>
+    <string name="dialog_device_limit_body">ДОСТИГНУТ ЛИМИТ УСТРОЙСТВ ДЛЯ ТВОЕГО ТАРИФА. ПОВЫСЬ УРОВЕНЬ ДОСТУПА.</string>
+    <string name="btn_view_tariffs">ТАРИФЫ</string>
+    <string name="btn_later">ПОЗЖЕ</string>
+    <string name="dialog_traffic_block_title">ТРАФИК ИСЧЕРПАН</string>
+    <string name="dialog_traffic_block_body">ЛИМИТ 3 ГБ ИСЧЕРПАН. ТУННЕЛЬ ЗАБЛОКИРОВАН НА 30 ДНЕЙ. СНИМИ ОГРАНИЧЕНИЯ — ОФОРМИ БЕЗЛИМИТ.</string>
 
     <!-- Settings -->
     <string name="label_subscription">SUBSCRIPTION</string>
@@ -140,6 +149,11 @@
     <string name="settings_label_devices">Мои устройства</string>
     <string name="settings_link_telegram">Привязать Telegram</string>
     <string name="settings_telegram_linked">✓ Telegram привязан</string>
+    <string name="settings_section_about">О СЕРВИСЕ</string>
+    <string name="settings_about_privacy">Политика конфиденциальности</string>
+    <string name="settings_about_terms">Пользовательское соглашение</string>
+    <string name="settings_about_support">Поддержка</string>
+    <string name="settings_about_support_value">@tyraxvpnbot</string>
 
     <!-- Onboarding -->
     <string name="onboarding_slide2_title">С НАМИ РЕШАЕШЬ — ТЫ</string>
