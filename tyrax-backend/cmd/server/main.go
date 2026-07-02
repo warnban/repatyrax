@@ -31,6 +31,22 @@ func main() {
 
 	cfg := config.Load()
 
+	adminMode := "disabled"
+	switch {
+	case cfg.AdminPassword != "":
+		adminMode = "plain"
+	case cfg.AdminPasswordHash != "":
+		adminMode = "bcrypt"
+	case cfg.AdminUsername != "":
+		adminMode = "misconfigured"
+	}
+	logger.Info("admin panel auth",
+		slog.String("mode", adminMode),
+		slog.String("username", cfg.AdminUsername),
+		slog.Int("plain_bytes", len(cfg.AdminPassword)),
+		slog.Int("hash_bytes", len(cfg.AdminPasswordHash)),
+	)
+
 	ctx := context.Background()
 	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {

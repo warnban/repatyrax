@@ -98,6 +98,7 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 			slog.Int("plain_bytes", len(h.cfg.AdminPassword)),
 			slog.Bool("hash_configured", h.cfg.AdminPasswordHash != ""),
 			slog.Int("got_bytes", len(strings.TrimSpace(req.Password))),
+			slog.Bool("length_match", len(strings.TrimSpace(req.Password)) == len(h.cfg.AdminPassword)),
 		)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status": "error", "message": "ACCESS DENIED",
@@ -144,7 +145,7 @@ func (h *AdminHandler) adminAuthEnabled() bool {
 func (h *AdminHandler) verifyAdminPassword(password string) bool {
 	pass := strings.TrimSpace(password)
 	if h.cfg.AdminPassword != "" {
-		return subtle.ConstantTimeCompare([]byte(pass), []byte(h.cfg.AdminPassword)) == 1
+		return adminSecretMatch(pass, h.cfg.AdminPassword)
 	}
 	if h.cfg.AdminPasswordHash != "" {
 		return bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(pass)) == nil
@@ -152,12 +153,18 @@ func (h *AdminHandler) verifyAdminPassword(password string) bool {
 	return false
 }
 
-// AuthDiag — GET /api/v1/admin/auth/diag (localhost only, no secrets exposed)
-func (h *AdminHandler) AuthDiag(c *fiber.Ctx) error {
-	ip := c.IP()
-	if ip != "127.0.0.1" && ip != "::1" {
-		return c.SendStatus(fiber.StatusNotFound)
+func adminSecretMatch(got, want string) bool {
+	if len(got) != len(want) {
+		return false
 	}
+	if len(want) == 0 {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+}
+
+// AuthDiag — GET /api/v1/admin/auth/diag (no secrets; use from server/debug only)
+func (h *AdminHandler) AuthDiag(c *fiber.Ctx) error {
 	mode := "none"
 	switch {
 	case h.cfg.AdminPassword != "":
@@ -168,6 +175,7 @@ func (h *AdminHandler) AuthDiag(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status": "ok",
 		"data": fiber.Map{
+			"build":          "admin-auth-v3",
 			"enabled":        h.adminAuthEnabled(),
 			"mode":           mode,
 			"username":       h.cfg.AdminUsername,
