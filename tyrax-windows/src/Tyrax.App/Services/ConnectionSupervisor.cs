@@ -16,7 +16,8 @@ namespace Tyrax.App.Services;
 /// </summary>
 public sealed class ConnectionSupervisor : IDisposable
 {
-    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(25);
+    // Service-side connect can exceed 25s (xray TUN wait + netsh retries on WinTun).
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan SwitchDelay = TimeSpan.FromMilliseconds(1200);
     private static readonly TimeSpan Backoff = TimeSpan.FromSeconds(8);
 

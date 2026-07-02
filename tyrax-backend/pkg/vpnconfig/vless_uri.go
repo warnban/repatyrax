@@ -57,6 +57,10 @@ func GenerateVlessURI(node model.Node, userUUID, remark string) string {
 		if mode == "" {
 			mode = defaultXhttpMode
 		}
+		// XTLS-Vision over XHTTP requires stream-one — same rule as buildStreamSettings.
+		if node.Flow == "xtls-rprx-vision" {
+			mode = "stream-one"
+		}
 		q.Set("path", path)
 		q.Set("mode", mode)
 		if security == "tls" {

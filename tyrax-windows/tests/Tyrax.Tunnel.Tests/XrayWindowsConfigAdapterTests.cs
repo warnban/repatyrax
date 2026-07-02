@@ -23,7 +23,16 @@ public sealed class XrayWindowsConfigAdapterTests
             "sniffing": { "enabled": true, "destOverride": ["fakedns", "http", "tls", "quic"] }
           }],
           "outbounds": [
-            { "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "node.example", "port": 443, "users": [{ "id": "uuid" }] }] } },
+            {
+              "tag": "proxy",
+              "protocol": "vless",
+              "settings": { "vnext": [{ "address": "node.example", "port": 443, "users": [{ "id": "uuid" }] }] },
+              "streamSettings": {
+                "network": "xhttp",
+                "security": "reality",
+                "xhttpSettings": { "path": "/api/v1/data", "mode": "auto", "extra": { "xPaddingBytes": "100-1000" } }
+              }
+            },
             { "tag": "direct", "protocol": "freedom", "settings": {} },
             { "tag": "dns-out", "protocol": "dns", "settings": {} }
           ],
@@ -52,25 +61,33 @@ public sealed class XrayWindowsConfigAdapterTests
         Assert.Equal("tun", inbound.GetProperty("protocol").GetString());
         Assert.Equal("TYRAX", inbound.GetProperty("settings").GetProperty("name").GetString());
         Assert.Equal(1400, inbound.GetProperty("settings").GetProperty("mtu").GetInt32());
-        Assert.False(inbound.TryGetProperty("sniffing", out _));
+        Assert.Equal("10.7.0.1/24", inbound.GetProperty("settings").GetProperty("gateway")[0].GetString());
+        Assert.Equal("auto", inbound.GetProperty("settings").GetProperty("autoOutboundsInterface").GetString());
+        Assert.True(inbound.GetProperty("sniffing").GetProperty("enabled").GetBoolean());
 
         var dnsServers = root.GetProperty("dns").GetProperty("servers");
-        Assert.Equal(1, dnsServers.GetArrayLength());
-        Assert.Equal("1.1.1.1", dnsServers[0].GetProperty("address").GetString());
+        Assert.Equal(2, dnsServers.GetArrayLength());
+        Assert.Equal("https://1.1.1.1/dns-query", dnsServers[0].GetString());
 
         var tags = root.GetProperty("outbounds").EnumerateArray()
             .Select(o => o.GetProperty("tag").GetString()).ToArray();
         Assert.DoesNotContain("dns-out", tags);
 
-        var rules = root.GetProperty("routing").GetProperty("rules");
-        Assert.All(rules.EnumerateArray(), r =>
-        {
-            if (r.TryGetProperty("outboundTag", out var tag))
-                Assert.NotEqual("dns-out", tag.GetString());
-            if (r.TryGetProperty("ip", out var ips))
-                Assert.All(ips.EnumerateArray(), ip =>
-                    Assert.DoesNotContain("198.18", ip.GetString()));
-        });
+        var proxyUser = root.GetProperty("outbounds")[0]
+            .GetProperty("settings").GetProperty("vnext")[0]
+            .GetProperty("users")[0];
+        Assert.Equal("xudp", proxyUser.GetProperty("packetEncoding").GetString());
+
+        var xmux = root.GetProperty("outbounds")[0]
+            .GetProperty("streamSettings").GetProperty("xhttpSettings")
+            .GetProperty("extra").GetProperty("xmux");
+        Assert.Equal(1, xmux.GetProperty("maxConnections").GetInt32());
+
+        var routing = root.GetProperty("routing");
+        Assert.Equal("AsIs", routing.GetProperty("domainStrategy").GetString());
+        var directRule = routing.GetProperty("rules")[0];
+        var directIps = directRule.GetProperty("ip").EnumerateArray().Select(i => i.GetString()).ToArray();
+        Assert.DoesNotContain(directIps, ip => ip!.StartsWith("10."));
 
         Assert.Equal("node.example", XrayConfigInspector.GetProxyHost(adapted));
     }
