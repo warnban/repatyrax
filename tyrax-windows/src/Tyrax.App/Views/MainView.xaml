@@ -74,6 +74,14 @@
                        Style="{StaticResource TyraxLabel}"
                        Margin="0,18,0,0" HorizontalAlignment="Center" />
 
+            <!-- Прогрев канала: xray поднимает VLESS+Reality при первом трафике (~30-60 сек) -->
+            <TextBlock Text="{Binding WarmUpText}"
+                       Foreground="{StaticResource TyraxRed}"
+                       FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="11"
+                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="340"
+                       Margin="0,14,0,0" HorizontalAlignment="Center"
+                       Visibility="{Binding ShowWarmUp, Converter={StaticResource BoolToVis}}" />
+
             <TextBlock Text="{Binding QuotaText}"
                        Foreground="{StaticResource TyraxRed}"
                        FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="12"

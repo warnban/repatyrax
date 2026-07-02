@@ -10,7 +10,7 @@
 ; -----------------------------------------------------------------------------
 
 #define AppName "TYRAX"
-#define AppVersion "1.0.11"
+#define AppVersion "1.0.12"
 #define AppPublisher "TYRAX"
 #define AppExe "TYRAX.exe"
 #define ServiceExe "TyraxService.exe"

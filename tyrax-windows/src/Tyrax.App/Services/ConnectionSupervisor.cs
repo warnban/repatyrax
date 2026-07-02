@@ -6,6 +6,21 @@ using Tyrax.Ipc;
 
 namespace Tyrax.App.Services;
 
+/// <summary>Intent the supervisor is currently pursuing, surfaced to the UI so the
+/// main screen can show a coherent status/button independent of transient tunnel
+/// state pushes.</summary>
+public enum SupervisorPhase
+{
+    /// <summary>User does not want a tunnel — button reads ВКЛЮЧИТЬ.</summary>
+    Idle,
+
+    /// <summary>User wants a tunnel; establishing or holding it — button reads ВЫКЛЮЧИТЬ.</summary>
+    Working,
+
+    /// <summary>User wants a tunnel; a drop/failure is being recovered — button reads ВЫКЛЮЧИТЬ.</summary>
+    Reconnecting,
+}
+
 /// <summary>
 /// Keeps the tunnel alive "in any conditions". Picks the best node, tells the
 /// service to breach it, then watches the IPC status stream; when the service
@@ -13,6 +28,11 @@ namespace Tyrax.App.Services;
 /// silently switches to the next candidate node. Direct port of the Android
 /// <c>ConnectionSupervisor</c>, but node health is measured service-side and
 /// surfaced over the pipe.
+///
+/// <para>The UI must drive its button off <see cref="IsActive"/> / <see cref="PhaseChanged"/>
+/// (the user's intent), NOT off the raw tunnel state — otherwise a transient
+/// <see cref="TunnelState.Error"/> during an in-flight reconnect makes the button
+/// flip to ВКЛЮЧИТЬ and the user can neither stop nor see the recovery.</para>
 /// </summary>
 public sealed class ConnectionSupervisor : IDisposable
 {
@@ -26,7 +46,9 @@ public sealed class ConnectionSupervisor : IDisposable
     private readonly TunnelIpcClient _ipc;
 
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _transition = new(1, 1);
     private volatile bool _wants;
+    private SupervisorPhase _phase = SupervisorPhase.Idle;
     private CancellationTokenSource? _loopCts;
     private Task _loopTask = Task.CompletedTask;
     private CancellationTokenSource _dropCts = new();
@@ -39,25 +61,52 @@ public sealed class ConnectionSupervisor : IDisposable
         _ipc.Disconnected += OnPipeDrop;
     }
 
+    /// <summary>True while the user wants a tunnel (establishing, online, or recovering).</summary>
+    public bool IsActive => _wants;
+
+    /// <summary>Current supervisor phase, so the UI shows a coherent status + button.</summary>
+    public SupervisorPhase Phase => _phase;
+
+    /// <summary>Raised whenever <see cref="Phase"/> changes.</summary>
+    public event Action<SupervisorPhase>? PhaseChanged;
+
     /// <summary>User pressed ENTER, or chose a node. Restarts supervision, preferring <paramref name="preferredCodename"/>.</summary>
     public void Start(string? preferredCodename = null) => _ = RestartAsync(preferredCodename);
 
     /// <summary>User pressed DISCONNECT. Stops supervision and tears the tunnel down.</summary>
     public async Task StopAsync()
     {
-        _wants = false;
-        await StopLoopAsync();
-        try { await _ipc.SendAsync(new IpcCommand { Kind = IpcCommandKind.Disconnect }); }
-        catch (Exception) { /* pipe may be down */ }
+        await _transition.WaitAsync();
+        try
+        {
+            _wants = false;
+            SetPhase(SupervisorPhase.Idle);
+            await StopLoopAsync();
+            try { await _ipc.SendAsync(new IpcCommand { Kind = IpcCommandKind.Disconnect }); }
+            catch (Exception) { /* pipe may be down */ }
+        }
+        finally
+        {
+            _transition.Release();
+        }
     }
 
     private async Task RestartAsync(string? preferred)
     {
-        await StopLoopAsync();
-        _wants = true;
-        var cts = new CancellationTokenSource();
-        lock (_gate) _loopCts = cts;
-        _loopTask = Task.Run(() => RunAsync(preferred, cts.Token));
+        await _transition.WaitAsync();
+        try
+        {
+            await StopLoopAsync();
+            _wants = true;
+            SetPhase(SupervisorPhase.Working);
+            var cts = new CancellationTokenSource();
+            lock (_gate) _loopCts = cts;
+            _loopTask = Task.Run(() => RunAsync(preferred, cts.Token));
+        }
+        finally
+        {
+            _transition.Release();
+        }
     }
 
     private async Task StopLoopAsync()
@@ -71,20 +120,31 @@ public sealed class ConnectionSupervisor : IDisposable
 
     private async Task RunAsync(string? preferred, CancellationToken ct)
     {
-        var candidates = await LoadCandidatesAsync(ct);
-        if (candidates.Count == 0) return; // MainViewModel surfaces NODE UNAVAILABLE via IPC error
-
-        if (preferred is not null)
-        {
-            var i = candidates.FindIndex(n => string.Equals(n.Codename, preferred, StringComparison.OrdinalIgnoreCase));
-            if (i > 0) { var n = candidates[i]; candidates.RemoveAt(i); candidates.Insert(0, n); }
-        }
-
+        List<Node> candidates = new();
         var idx = 0;
         var fails = 0;
 
         while (_wants && !ct.IsCancellationRequested)
         {
+            // (Re)load candidates and self-heal when none are available yet.
+            if (candidates.Count == 0)
+            {
+                candidates = await LoadCandidatesAsync(ct);
+                if (candidates.Count == 0)
+                {
+                    SetPhase(SupervisorPhase.Reconnecting);
+                    await DelayQuiet(Backoff, ct);
+                    continue;
+                }
+
+                if (preferred is not null)
+                {
+                    var i = candidates.FindIndex(n => string.Equals(n.Codename, preferred, StringComparison.OrdinalIgnoreCase));
+                    if (i > 0) { var n = candidates[i]; candidates.RemoveAt(i); candidates.Insert(0, n); }
+                }
+                idx = 0;
+            }
+
             var node = candidates[idx % candidates.Count];
             var connected = await AttemptNodeAsync(node, ct);
 
@@ -93,20 +153,23 @@ public sealed class ConnectionSupervisor : IDisposable
                 if (!_wants) break;
                 fails++;
                 idx++;
+                SetPhase(SupervisorPhase.Reconnecting);
                 if (fails >= candidates.Count * 2)
                 {
                     await DelayQuiet(Backoff, ct);
                     fails = 0;
-                    var refreshed = await LoadCandidatesAsync(ct);
-                    if (refreshed.Count > 0) candidates = refreshed;
+                    candidates = new(); // force a fresh node list next iteration
                 }
                 continue;
             }
 
             fails = 0;
+            SetPhase(SupervisorPhase.Working);
             await MonitorUntilDropAsync(ct);
             if (!_wants) break;
 
+            // The tunnel dropped while the user still wants it → recover.
+            SetPhase(SupervisorPhase.Reconnecting);
             await DelayQuiet(SwitchDelay, ct);
             idx++;
         }
@@ -196,6 +259,13 @@ public sealed class ConnectionSupervisor : IDisposable
         old.Dispose();
     }
 
+    private void SetPhase(SupervisorPhase phase)
+    {
+        bool changed;
+        lock (_gate) { changed = _phase != phase; _phase = phase; }
+        if (changed) PhaseChanged?.Invoke(phase);
+    }
+
     private static async Task DelayQuiet(TimeSpan d, CancellationToken ct)
     {
         try { await Task.Delay(d, ct); } catch (OperationCanceledException) { }
@@ -206,5 +276,6 @@ public sealed class ConnectionSupervisor : IDisposable
         _ipc.Disconnected -= OnPipeDrop;
         _loopCts?.Cancel();
         _dropCts.Dispose();
+        _transition.Dispose();
     }
 }

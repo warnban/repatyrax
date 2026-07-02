@@ -93,8 +93,16 @@ public sealed class TunnelSupervisor : IAsyncDisposable
             _net = new NetworkConfigurator(_logger);
             await _net.ApplyAsync(nodeHost, cmd.SplitDomains ?? Array.Empty<string>(), ct);
 
+            // The old OS resolver cache still holds pre-tunnel (often RU-geo / negative)
+            // answers; drop it so lookups resolve through the tunnel immediately.
+            FlushDnsCache();
+
             var status = Set(TunnelState.Connected, cmd.Codename, null);
             StartMonitors();
+
+            // Kick the xray outbound so the VLESS+Reality+XHTTP handshake happens now
+            // instead of on the user's first page load (cuts the "works after ~minute").
+            _ = Task.Run(() => WarmUpAsync(_monitorCts?.Token ?? CancellationToken.None));
             return status;
         }
         catch (Exception ex)
@@ -247,6 +255,49 @@ public sealed class TunnelSupervisor : IAsyncDisposable
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>Drops the OS DNS resolver cache (best-effort; ignores failures).</summary>
+    private void FlushDnsCache()
+    {
+        try
+        {
+            using var proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "ipconfig",
+                Arguments = "/flushdns",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            proc?.WaitForExit(3000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "flushdns");
+        }
+    }
+
+    /// <summary>
+    /// Forces the proxy outbound to establish immediately after connect by driving a
+    /// few probes through the tunnel. Purely a warmup: results are NOT counted toward
+    /// the degrade watchdog. Stops as soon as one succeeds.
+    /// </summary>
+    private async Task WarmUpAsync(CancellationToken token)
+    {
+        for (var i = 0; i < 6 && !token.IsCancellationRequested; i++)
+        {
+            lock (_stateLock) { if (_state != TunnelState.Connected) return; }
+            var result = await TunnelHealth.ProbeAsync(token);
+            if (result.Ok)
+            {
+                _logger.LogInformation("tunnel warmed up in ~{Ms}ms", result.ElapsedMs);
+                return;
+            }
+            try { await Task.Delay(2000, token); }
+            catch (OperationCanceledException) { return; }
         }
     }
 

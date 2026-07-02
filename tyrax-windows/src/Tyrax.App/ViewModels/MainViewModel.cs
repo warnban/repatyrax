@@ -9,6 +9,11 @@ namespace Tyrax.App.ViewModels;
 /// <summary>Главный экран: статус туннеля, квота, цифровой дождь, навигация.</summary>
 public sealed partial class MainViewModel : ObservableObject
 {
+    // Пока через туннель не прошёл первый значимый трафик, канал ещё «прогревается»
+    // (xray поднимает VLESS+Reality+XHTTP при первом запросе). Показываем подпись.
+    private const long WarmUpRxThresholdBytes = 256 * 1024; // ~0.25 МБ реального трафика
+    private static readonly TimeSpan WarmUpMaxDuration = TimeSpan.FromSeconds(75);
+
     private readonly ConnectionSupervisor _supervisor;
     private readonly TunnelIpcClient _ipc;
 
@@ -26,8 +31,12 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _showQuota;
     [ObservableProperty] private string _blockedText = "";
     [ObservableProperty] private bool _showBlockedBanner;
+    [ObservableProperty] private string _warmUpText = "";
+    [ObservableProperty] private bool _showWarmUp;
 
     private string? _updateUrl;
+    private SupervisorPhase _phase = SupervisorPhase.Idle;
+    private DateTime _warmUpStartUtc;
 
     public MainViewModel(ConnectionSupervisor supervisor, TunnelIpcClient ipc)
     {
@@ -35,6 +44,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ipc = ipc;
         _ipc.StatusReceived += OnStatus;
         _ipc.Disconnected += OnPipeDropped;
+        _supervisor.PhaseChanged += OnPhaseChanged;
     }
 
     public event Action? NodesRequested;
@@ -109,8 +119,14 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenTariffsFromBanner() => ControlRequested?.Invoke();
 
+    /// <summary>
+    /// Кнопка ВКЛЮЧИТЬ/ВЫКЛЮЧИТЬ. Синхронная и мгновенная — решение принимается по
+    /// НАМЕРЕНИЮ супервизора (<see cref="ConnectionSupervisor.IsActive"/>), а не по
+    /// сырому состоянию туннеля. Так кнопка всегда отзывчива и всегда может прервать
+    /// восстановление (иначе при NODE DEGRADED кнопка «зависала» на ВКЛЮЧИТЬ).
+    /// </summary>
     [RelayCommand]
-    private async Task ToggleAsync()
+    private void Toggle()
     {
         if (!ServiceOnline)
         {
@@ -119,8 +135,8 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (State is TunnelState.Connected or TunnelState.Connecting)
-            await _supervisor.StopAsync();
+        if (_supervisor.IsActive)
+            _ = _supervisor.StopAsync(); // fire-and-forget: команда не блокируется
         else
             _supervisor.Start(null);
     }
@@ -133,34 +149,90 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnStatus(IpcStatus s) => OnUi(() =>
     {
+        var wasConnected = State == TunnelState.Connected;
         State = s.State;
-        IsBreaching = s.State == TunnelState.Connecting;
-        IsRainActive = s.State == TunnelState.Connected;
+
         NodeTag = s.Codename is null ? "ЛОКАЦИЯ: —" : $"ЛОКАЦИЯ: {s.Codename.ToUpperInvariant()} · ОТКРЫТА";
-        StatusText = s.State switch
+        TrafficText = s.State == TunnelState.Connected
+            ? $"ОТПР {FormatBytes(s.TxBytes)} · ПРИЁМ {FormatBytes(s.RxBytes)}"
+            : "";
+
+        // Прогрев канала: старт при входе в Connected, снятие по первому реальному
+        // трафику или по таймауту.
+        if (s.State == TunnelState.Connected)
+        {
+            if (!wasConnected)
+            {
+                _warmUpStartUtc = DateTime.UtcNow;
+                ShowWarmUp = true;
+                WarmUpText = "КАНАЛ ПРОГРЕВАЕТСЯ · СТРАНИЦЫ ОТКРОЮТСЯ ЗА ~60 СЕК";
+            }
+            else if (ShowWarmUp &&
+                     (s.RxBytes >= WarmUpRxThresholdBytes || DateTime.UtcNow - _warmUpStartUtc >= WarmUpMaxDuration))
+            {
+                ShowWarmUp = false;
+                WarmUpText = "";
+            }
+        }
+        else
+        {
+            ShowWarmUp = false;
+            WarmUpText = "";
+        }
+
+        ApplyPresentation();
+    });
+
+    private void OnPhaseChanged(SupervisorPhase phase) => OnUi(() =>
+    {
+        _phase = phase;
+        ApplyPresentation();
+    });
+
+    /// <summary>
+    /// Единая точка, где статус/кнопка/анимации выводятся из НАМЕРЕНИЯ (<see cref="_phase"/>)
+    /// и сырого состояния туннеля вместе — чтобы транзиентный Error во время
+    /// переподключения не превращал кнопку в ВКЛЮЧИТЬ.
+    /// </summary>
+    private void ApplyPresentation()
+    {
+        var active = _supervisor.IsActive;
+        ActionText = active ? "ВЫКЛЮЧИТЬ" : "ВКЛЮЧИТЬ";
+
+        if (active && _phase == SupervisorPhase.Reconnecting && State != TunnelState.Connected)
+        {
+            StatusText = "ВОССТАНОВЛЕНИЕ ДОСТУПА…";
+            IsBreaching = true;
+            IsRainActive = false;
+            return;
+        }
+
+        IsBreaching = State == TunnelState.Connecting;
+        IsRainActive = State == TunnelState.Connected;
+        StatusText = State switch
         {
             TunnelState.Disconnected => "ВНЕ СИСТЕМЫ",
             TunnelState.Connecting => "ПРОНИКНОВЕНИЕ В СЕТЬ…",
             TunnelState.Connected => "ДОСТУП ОТКРЫТ",
             TunnelState.Disconnecting => "ВЫХОД ИЗ СИСТЕМЫ…",
-            TunnelState.Error => s.Message ?? "СБОЙ ПОДКЛЮЧЕНИЯ",
+            TunnelState.Error => active ? "ВОССТАНОВЛЕНИЕ ДОСТУПА…" : "СБОЙ ПОДКЛЮЧЕНИЯ",
             _ => StatusText,
         };
-        ActionText = s.State is TunnelState.Connected or TunnelState.Connecting ? "ВЫКЛЮЧИТЬ" : "ВКЛЮЧИТЬ";
-        TrafficText = s.State == TunnelState.Connected
-            ? $"ОТПР {FormatBytes(s.TxBytes)} · ПРИЁМ {FormatBytes(s.RxBytes)}"
-            : "";
-    });
+    }
 
     private void OnPipeDropped() => OnUi(() =>
     {
         ServiceOnline = false;
         ServiceStatusText = "СЛУЖБА НЕДОСТУПНА — ПЕРЕПОДКЛЮЧЕНИЕ…";
         State = TunnelState.Disconnected;
-        StatusText = "ВНЕ СИСТЕМЫ";
-        ActionText = "ВКЛЮЧИТЬ";
         TrafficText = "";
         IsRainActive = false;
+        ShowWarmUp = false;
+        WarmUpText = "";
+        // Кнопку выводим по намерению: если пользователь всё ещё «хочет» туннель,
+        // оставляем ВЫКЛЮЧИТЬ, чтобы он мог отменить намерение.
+        ApplyPresentation();
+        if (!_supervisor.IsActive) StatusText = "ВНЕ СИСТЕМЫ";
     });
 
     private static string FormatDate(string iso)
