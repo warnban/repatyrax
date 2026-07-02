@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TYRAX — CONTROL</title>
+  <link rel="stylesheet" href="/admin/assets/style.css">
+</head>
+<body>
+  <div id="app">
+    <section id="login-screen" class="screen">
+      <div class="panel login-panel">
+        <h1>TYRAX</h1>
+        <p class="subtitle">ADMIN CONTROL</p>
+        <form id="login-form">
+          <label>
+            <span>LOGIN</span>
+            <input type="text" id="login-user" autocomplete="username" required>
+          </label>
+          <label>
+            <span>PASSWORD</span>
+            <input type="password" id="login-pass" autocomplete="current-password" required>
+          </label>
+          <button type="submit" class="btn btn-primary">ENTER</button>
+          <p id="login-error" class="error hidden"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="main-screen" class="screen hidden">
+      <header class="topbar">
+        <div class="brand">TYRAX <span>ADMIN</span></div>
+        <nav class="tabs">
+          <button class="tab active" data-tab="users">ПОЛЬЗОВАТЕЛИ</button>
+          <button class="tab" data-tab="support">ПОДДЕРЖКА</button>
+        </nav>
+        <button id="logout-btn" class="btn btn-ghost">EXIT</button>
+      </header>
+
+      <main>
+        <section id="tab-users" class="tab-panel">
+          <div class="toolbar">
+            <input type="search" id="user-search" placeholder="EMAIL / TELEGRAM / ID">
+            <button id="user-search-btn" class="btn">SEARCH</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>IDENTITY</th>
+                  <th>TIER</th>
+                  <th>DEVICES</th>
+                  <th>STATUS</th>
+                  <th>REG IP</th>
+                  <th>END</th>
+                </tr>
+              </thead>
+              <tbody id="users-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-support" class="tab-panel hidden">
+          <div class="support-layout">
+            <div class="ticket-list-wrap">
+              <div class="toolbar">
+                <select id="ticket-filter">
+                  <option value="">ALL</option>
+                  <option value="open" selected>OPEN</option>
+                  <option value="closed">CLOSED</option>
+                </select>
+                <button id="ticket-refresh" class="btn">REFRESH</button>
+              </div>
+              <div id="ticket-list" class="ticket-list"></div>
+            </div>
+            <div id="ticket-detail" class="ticket-detail empty">
+              <p class="muted">ВЫБЕРИ ТИКЕТ</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <dialog id="user-modal">
+      <div class="modal-head">
+        <h2 id="modal-title">IDENTITY</h2>
+        <button id="modal-close" class="btn btn-ghost">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </dialog>
+  </div>
+  <script src="/admin/assets/app.js"></script>
+</body>
+</html>

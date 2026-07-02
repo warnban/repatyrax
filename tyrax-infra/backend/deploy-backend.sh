@@ -68,8 +68,14 @@ docker compose up -d
 echo "  -> Backend + Postgres up. Migrations 001..009 auto-applied on first boot."
 
 echo "==> [6/6] Caddy reverse proxy -> :8080 with auto TLS"
+ADMIN_DOMAIN="${ADMIN_DOMAIN:-admin.tyrax.tech}"
 cat >/etc/caddy/Caddyfile <<EOF
 ${API_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8080
+}
+
+${ADMIN_DOMAIN} {
     encode zstd gzip
     reverse_proxy 127.0.0.1:8080
 }
@@ -77,5 +83,6 @@ EOF
 systemctl reload caddy
 
 echo "DONE. Verify: curl -s https://${API_DOMAIN}/health  (expect {\"status\":\"ok\"})"
+echo "Admin panel: https://${ADMIN_DOMAIN}/"
 echo "Point the Android app BASE_URL at https://${API_DOMAIN}/"
 echo "If fronting with Cloudflare: set the DNS A record to PROXIED and use Full(strict) TLS."

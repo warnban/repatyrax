@@ -200,6 +200,18 @@ func (h *VPNHandler) GetSplitDomains(c *fiber.Ctx) error {
 	})
 }
 
+func (h *VPNHandler) LogDisconnect(c *fiber.Ctx) error {
+	userID := extractUserID(c)
+	if userID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"status": "error", "message": "ACCESS DENIED"})
+	}
+	if err := h.vpnService.RecordDisconnect(c.Context(), userID); err != nil {
+		slog.Error("disconnect log failed", "err", err.Error())
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "SYSTEM FAILURE"})
+	}
+	return c.JSON(fiber.Map{"status": "ok"})
+}
+
 func extractUserID(c *fiber.Ctx) string {
 	userID, ok := c.Locals("user_id").(string)
 	if !ok {

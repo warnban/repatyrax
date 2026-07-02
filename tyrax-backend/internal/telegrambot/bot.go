@@ -182,7 +182,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 		case "menu":
 			b.sendMainMenu(msg.Chat.ID, msgUseMenu)
 		case "help":
-			b.sendText(msg.Chat.ID, msgHelp)
+			b.sendSupportLink(msg.Chat.ID)
 		default:
 			b.sendMainMenu(msg.Chat.ID, msgUseMenu)
 		}
@@ -199,7 +199,7 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	case btnBuy:
 		b.handleBuyStart(msg.Chat.ID)
 	case btnHelp:
-		b.sendText(msg.Chat.ID, msgHelp)
+		b.sendSupportLink(msg.Chat.ID)
 	default:
 		b.sendMainMenu(msg.Chat.ID, msgUseMenu)
 	}
@@ -811,6 +811,18 @@ func (b *Bot) send(c tgbotapi.Chattable) {
 	if _, err := b.api.Send(c); err != nil {
 		slog.Error("telegram bot: send failed", slog.String("error", err.Error()))
 	}
+}
+
+func (b *Bot) sendSupportLink(chatID int64) {
+	m := tgbotapi.NewMessage(chatID, "▓ ПОМОЩЬ ▓\n\n"+
+		"Не подключается? Тормозит? Вопрос по оплате?\n\n"+
+		"Нажми кнопку — откроется чат поддержки.\n"+
+		"DOMINION — приоритетная поддержка 24/7.")
+	btn := tgbotapi.NewInlineKeyboardButtonURL("🆘 ОТКРЫТЬ ПОДДЕРЖКУ", b.cfg.TelegramSupportBotURL)
+	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(btn),
+	)
+	b.send(m)
 }
 
 func (b *Bot) sendText(chatID int64, text string) {

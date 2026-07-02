@@ -97,22 +97,25 @@ type VPNService interface {
 	ListDevices(ctx context.Context, userID string) ([]model.Device, error)
 	DeleteDevice(ctx context.Context, deviceID, userID string) error
 	GetSplitDomains(ctx context.Context) ([]string, error)
+	RecordDisconnect(ctx context.Context, userID string) error
 }
 
 type vpnService struct {
 	nodeRepo   repository.NodeRepository
 	deviceRepo repository.DeviceRepository
 	userRepo   repository.UserRepository
+	connRepo   repository.ConnectionRepository
 	panel      PanelSyncer
 	traffic    TrafficGuard
 	load       NodeLoadProvider
 }
 
-func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, panel PanelSyncer, traffic TrafficGuard, load NodeLoadProvider) VPNService {
+func NewVPNService(nodeRepo repository.NodeRepository, deviceRepo repository.DeviceRepository, userRepo repository.UserRepository, connRepo repository.ConnectionRepository, panel PanelSyncer, traffic TrafficGuard, load NodeLoadProvider) VPNService {
 	return &vpnService{
 		nodeRepo:   nodeRepo,
 		deviceRepo: deviceRepo,
 		userRepo:   userRepo,
+		connRepo:   connRepo,
 		panel:      panel,
 		traffic:    traffic,
 		load:       load,
@@ -330,10 +333,28 @@ func (s *vpnService) Connect(ctx context.Context, userID, deviceName, codename s
 		return nil, fmt.Errorf("unsupported protocol: %s", node.Protocol)
 	}
 
-	return &VPNConfig{
+	cfg := &VPNConfig{
 		Protocol: node.Protocol,
 		Config:   config,
-	}, nil
+	}
+	s.afterConnect(ctx, userID, node)
+	return cfg, nil
+}
+
+func (s *vpnService) afterConnect(ctx context.Context, userID string, node *model.Node) {
+	_ = s.userRepo.TouchLastSeen(ctx, userID)
+	if s.connRepo != nil {
+		if _, err := s.connRepo.LogConnect(ctx, userID, node.ID, node.Protocol); err != nil {
+			slog.Warn("connection log", slog.String("user_id", userID), slog.String("error", err.Error()))
+		}
+	}
+}
+
+func (s *vpnService) RecordDisconnect(ctx context.Context, userID string) error {
+	if s.connRepo == nil {
+		return nil
+	}
+	return s.connRepo.LogDisconnect(ctx, userID)
 }
 
 func (s *vpnService) GetConfig(ctx context.Context, userID, devicePublicKey string) (*VPNConfig, error) {

@@ -30,7 +30,9 @@ RUN apk add --no-cache ca-certificates wget \
     && adduser -D -u 10001 tyrax
 
 COPY --from=builder /tyrax /usr/local/bin/tyrax
+COPY admin /app/admin
 
+WORKDIR /app
 USER tyrax
 EXPOSE 8080
 

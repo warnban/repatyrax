@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
@@ -14,6 +15,7 @@ import (
 	"github.com/tyrax/tyrax-backend/internal/middleware"
 	"github.com/tyrax/tyrax-backend/internal/repository"
 	"github.com/tyrax/tyrax-backend/internal/service"
+	"github.com/tyrax/tyrax-backend/internal/supportbot"
 	"github.com/tyrax/tyrax-backend/internal/telegrambot"
 	"github.com/tyrax/tyrax-backend/pkg/cryptopay"
 	"github.com/tyrax/tyrax-backend/pkg/freekassa"
@@ -43,6 +45,9 @@ func main() {
 	userRepo   := repository.NewUserRepository(db)
 	orderRepo  := repository.NewOrderRepository(db)
 	inviteRepo := repository.NewInviteRepository(db)
+	connRepo   := repository.NewConnectionRepository(db)
+	adminRepo  := repository.NewAdminRepository(db)
+	supportRepo := repository.NewSupportRepository(db)
 
 	// ── External clients ──────────────────────────────────────────────────────
 	fkClient := freekassa.New(cfg.FreeKassaShopID, cfg.FreeKassaAPIKey, cfg.FreeKassaSecretWord2)
@@ -56,9 +61,10 @@ func main() {
 	// Balancer samples live per-node online counts so GetNodes can steer clients
 	// to the least-loaded node. Fail-open: no data ⇒ default ping ordering.
 	nodeBalancer := service.NewNodeBalancer(nodeRepo, panelSyncer)
-	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer, trafficSvc, nodeBalancer)
+	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, connRepo, panelSyncer, trafficSvc, nodeBalancer)
 	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient)
 	inviteSvc  := service.NewInviteService(userRepo, inviteRepo)
+	adminSvc   := service.NewAdminService(userRepo, adminRepo)
 	happSubSvc := service.NewHappSubscriptionService(
 		userRepo, deviceRepo, nodeRepo, vpnSvc, panelSyncer, trafficSvc,
 		cfg.PublicAPIURL, cfg.WebsiteURL, cfg.TelegramBotURL,
@@ -76,12 +82,15 @@ func main() {
 	// No-op if TELEGRAM_BOT_TOKEN is unset.
 	go telegrambot.Start(cfg, db, vpnSvc, paymentSvc, happSubSvc)
 
+	supportMessenger := supportbot.Start(cfg, userRepo, supportRepo)
+
 	// ── Handlers ─────────────────────────────────────────────────────────────
 	authH    := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.TelegramBotUsername)
 	vpnH     := handler.NewVPNHandler(vpnSvc)
 	paymentH := handler.NewPaymentHandler(paymentSvc, inviteSvc, deviceRepo, userRepo, trafficSvc)
 	subH     := handler.NewSubscriptionHandler(happSubSvc)
 	dlH      := handler.NewDownloadHandler(cfg.WebsiteURL, cfg.WindowsAppVersion)
+	adminH   := handler.NewAdminHandler(cfg, adminRepo, supportRepo, userRepo, adminSvc, supportMessenger)
 
 	// ── App ───────────────────────────────────────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -135,7 +144,39 @@ func main() {
 	protected.Get("/vpn/split-domains",      vpnH.GetSplitDomains)
 	protected.Get("/nodes",                  vpnH.GetNodes)
 	protected.Post("/vpn/connect",           vpnH.Connect)
-	protected.Post("/vpn/disconnect",        handler.LogDisconnect)
+	protected.Post("/vpn/disconnect",        vpnH.LogDisconnect)
+
+	// Admin panel API — separate JWT, login/password from env.
+	admin := api.Group("/admin")
+	admin.Post("/auth/login", middleware.AuthRateLimiter(), adminH.Login)
+	adminProtected := admin.Group("/", middleware.AdminJWTAuth(cfg.AdminJWTSecret), middleware.UserRateLimiter())
+	adminProtected.Get("/stats", adminH.Stats)
+	adminProtected.Get("/users", adminH.ListUsers)
+	adminProtected.Get("/users/:id", adminH.GetUser)
+	adminProtected.Post("/users/:id/subscription", adminH.GrantSubscription)
+	adminProtected.Delete("/users/:id/subscription", adminH.RevokeSubscription)
+	adminProtected.Get("/support/tickets", adminH.ListTickets)
+	adminProtected.Get("/support/tickets/:id", adminH.GetTicket)
+	adminProtected.Post("/support/tickets/:id/reply", adminH.ReplyTicket)
+	adminProtected.Post("/support/tickets/:id/close", adminH.CloseTicket)
+
+	// Admin SPA — served on admin.* host or /admin path.
+	app.Use(func(c *fiber.Ctx) error {
+		host := strings.ToLower(c.Hostname())
+		path := c.Path()
+		if strings.HasPrefix(host, "admin.") || strings.HasPrefix(path, "/admin") {
+			c.Locals("serve_admin_ui", true)
+		}
+		return c.Next()
+	})
+	app.Static("/admin/assets", "./admin/assets")
+	app.Get("/admin/*", serveAdminSPA)
+	app.Get("/", func(c *fiber.Ctx) error {
+		if c.Locals("serve_admin_ui") == true {
+			return c.SendFile("./admin/index.html")
+		}
+		return c.Next()
+	})
 
 	// Payments
 	protected.Post("/payment/create",            paymentH.CreatePayment)
@@ -170,4 +211,11 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 		"status":  "error",
 		"message": err.Error(),
 	})
+}
+
+func serveAdminSPA(c *fiber.Ctx) error {
+	if c.Locals("serve_admin_ui") != true && !strings.HasPrefix(c.Path(), "/admin") {
+		return fiber.ErrNotFound
+	}
+	return c.SendFile("./admin/index.html")
 }

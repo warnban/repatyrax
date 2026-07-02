@@ -54,7 +54,7 @@ func NewTrafficService(
 
 // EffectiveTier is the tier actually in force: a paid tier whose subscription
 // has expired is treated as FREE.
-func effectiveTier(u *model.User) model.SubscriptionTier {
+func EffectiveTier(u *model.User) model.SubscriptionTier {
 	if u.SubscriptionTier == model.TierFree {
 		return model.TierFree
 	}
@@ -62,6 +62,10 @@ func effectiveTier(u *model.User) model.SubscriptionTier {
 		return model.TierFree
 	}
 	return u.SubscriptionTier
+}
+
+func effectiveTier(u *model.User) model.SubscriptionTier {
+	return EffectiveTier(u)
 }
 
 // isUnlimited reports whether the effective tier has no traffic cap.

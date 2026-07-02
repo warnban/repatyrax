@@ -18,7 +18,7 @@ import (
 const userQueryTimeout = 5 * time.Second
 
 // userColumns is the full column set scanned into model.User, in scan order.
-const userColumns = "id, email, password_hash, telegram_id, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token"
+const userColumns = "id, email, password_hash, telegram_id, username, registration_ip, last_seen_at, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token"
 
 var (
 	ErrUserNotFound = errors.New("IDENTITY NOT FOUND")
@@ -285,6 +285,32 @@ func (r *userRepository) EnsureSubscriptionToken(ctx context.Context, userID str
 	return token, nil
 }
 
+func (r *userRepository) SetRegistrationIP(ctx context.Context, userID, ip string) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET registration_ip = $1::inet
+		  WHERE id = $2 AND registration_ip IS NULL`,
+		ip, userID)
+	if err != nil {
+		return fmt.Errorf("set registration ip: %w", err)
+	}
+	return nil
+}
+
+func (r *userRepository) TouchLastSeen(ctx context.Context, userID string) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET last_seen_at = NOW() WHERE id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("touch last seen: %w", err)
+	}
+	return nil
+}
+
 func newSubscriptionToken() (string, error) {
 	b := make([]byte, 24)
 	if _, err := rand.Read(b); err != nil {
@@ -303,11 +329,16 @@ func scanUser(row rowScanner) (*model.User, error) {
 	// have neither), so scan them into *string and dereference when present.
 	var email *string
 	var passwordHash *string
+	var username *string
+	var regIP *string
 	if err := row.Scan(
 		&u.ID,
 		&email,
 		&passwordHash,
 		&u.TelegramID,
+		&username,
+		&regIP,
+		&u.LastSeenAt,
 		&tier,
 		&u.SubscriptionEnd,
 		&u.CreatedAt,
@@ -324,6 +355,12 @@ func scanUser(row rowScanner) (*model.User, error) {
 	}
 	if passwordHash != nil {
 		u.PasswordHash = *passwordHash
+	}
+	if username != nil {
+		u.Username = username
+	}
+	if regIP != nil {
+		u.RegistrationIP = regIP
 	}
 	return &u, nil
 }

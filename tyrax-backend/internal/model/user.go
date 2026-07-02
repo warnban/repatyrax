@@ -18,6 +18,9 @@ type User struct {
 	Email            string           `db:"email" json:"email"`
 	PasswordHash     string           `db:"password_hash" json:"-"`
 	TelegramID       *int64           `db:"telegram_id" json:"telegram_id,omitempty"`
+	Username         *string          `db:"username" json:"username,omitempty"`
+	RegistrationIP   *string          `db:"registration_ip" json:"registration_ip,omitempty"`
+	LastSeenAt       *time.Time       `db:"last_seen_at" json:"last_seen_at,omitempty"`
 	SubscriptionTier SubscriptionTier `db:"subscription_tier" json:"subscription_tier"`
 	SubscriptionEnd  *time.Time       `db:"subscription_end" json:"subscription_end,omitempty"`
 	CreatedAt        time.Time        `db:"created_at" json:"created_at"`

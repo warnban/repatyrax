@@ -23,6 +23,12 @@ type Config struct {
 	FreeKassaSecretWord2 string
 
 	CryptoPayToken string
+
+	AdminUsername         string
+	AdminPasswordHash     string
+	AdminJWTSecret        string
+	TelegramSupportToken  string
+	TelegramSupportBotURL string
 }
 
 func Load() *Config {
@@ -44,6 +50,12 @@ func Load() *Config {
 		FreeKassaSecretWord2: getEnv("FREEKASSA_SECRET_WORD_2", ""),
 
 		CryptoPayToken: getEnv("CRYPTO_PAY_TOKEN", ""),
+
+		AdminUsername:         getEnv("ADMIN_USERNAME", ""),
+		AdminPasswordHash:     getEnv("ADMIN_PASSWORD_HASH", ""),
+		AdminJWTSecret:        getEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
+		TelegramSupportToken:  getEnv("TELEGRAM_SUPPORT_BOT_TOKEN", ""),
+		TelegramSupportBotURL: getEnv("TELEGRAM_SUPPORT_BOT_URL", "https://t.me/tyrax_support_bot"),
 	}
 }
 

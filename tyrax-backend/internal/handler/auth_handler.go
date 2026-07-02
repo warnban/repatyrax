@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -81,6 +82,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		slog.String("user_id", user.ID),
 		slog.String("tier", string(user.SubscriptionTier)),
 	)
+	if ip := clientIP(c); ip != "" {
+		_ = h.userRepo.SetRegistrationIP(c.Context(), user.ID, ip)
+	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"status": "ok",
 		"data": fiber.Map{
@@ -289,4 +293,12 @@ func (h *AuthHandler) signToken(userID, tier, email string) (string, error) {
 		},
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(h.jwtSecret))
+}
+
+func clientIP(c *fiber.Ctx) string {
+	if fwd := c.Get("X-Forwarded-For"); fwd != "" {
+		parts := strings.Split(fwd, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	return c.IP()
 }

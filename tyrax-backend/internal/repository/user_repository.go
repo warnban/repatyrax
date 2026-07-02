@@ -28,4 +28,7 @@ type UserRepository interface {
 	// Happ / external subscription feed.
 	FindBySubscriptionToken(ctx context.Context, token string) (*model.User, error)
 	EnsureSubscriptionToken(ctx context.Context, userID string) (string, error)
+
+	SetRegistrationIP(ctx context.Context, userID, ip string) error
+	TouchLastSeen(ctx context.Context, userID string) error
 }
