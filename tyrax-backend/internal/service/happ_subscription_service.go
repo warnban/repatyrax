@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -101,10 +102,14 @@ func (s *happSubscriptionService) RenderFeed(ctx context.Context, token string) 
 	userInfo, tierLabel := s.buildUserInfo(ctx, user)
 	headers := map[string]string{
 		"Content-Type":            "text/plain; charset=utf-8",
+		"Profile-Title":           encodeProfileTitle("TYRAX · " + strings.ToUpper(tierLabel)),
 		"Profile-Update-Interval": "3600",
 		"Subscription-Userinfo":   userInfo,
 		"Support-Url":             s.botURL,
 		"Announce":                fmt.Sprintf("TYRAX · %s · управление: %s", tierLabel, s.botURL),
+	}
+	if s.websiteURL != "" {
+		headers["Profile-Web-Page-Url"] = s.websiteURL
 	}
 
 	if blocked {
@@ -136,8 +141,7 @@ func (s *happSubscriptionService) RenderFeed(ctx context.Context, token string) 
 				_ = err
 			}
 		}
-		remark := fmt.Sprintf("TYRAX-%s", node.Codename)
-		lines = append(lines, vpnconfig.GenerateVlessURI(node, device.VlessUUID, remark))
+		lines = append(lines, vpnconfig.GenerateVlessURI(node, device.VlessUUID, nodeRemark(node)))
 	}
 
 	if len(lines) <= 1 {
@@ -200,10 +204,65 @@ func (s *happSubscriptionService) blockedFeed(message string) *HappSubscriptionF
 		Status: 200,
 		Body:   []byte("# " + message + "\n"),
 		Headers: map[string]string{
-			"Content-Type": "text/plain; charset=utf-8",
-			"Announce":     message,
+			"Content-Type":  "text/plain; charset=utf-8",
+			"Profile-Title": encodeProfileTitle("TYRAX"),
+			"Announce":      message,
 		},
 	}
+}
+
+// encodeProfileTitle renders a subscription display name for the `profile-title`
+// header. Clients (Happ, v2rayN, Streisand, Nekoray) accept a base64:-prefixed
+// value; base64 is mandatory here because the brand separator "·" is non-ASCII
+// and raw non-ASCII bytes are illegal in HTTP header values. Without this header
+// Happ falls back to showing the raw host (api.tyrax.tech) as the profile name.
+func encodeProfileTitle(title string) string {
+	return "base64:" + base64.StdEncoding.EncodeToString([]byte(title))
+}
+
+// nodeRemark builds the per-node display name shown in Happ / v2ray clients:
+// "<flag> <Country> · <NN>", e.g. "🇫🇮 Finland · 01". The flag is derived from
+// the codename's ISO-3166-1 alpha-2 prefix ("FI-01" -> "FI"); the numeric
+// suffix keeps names unique when one country hosts several nodes.
+func nodeRemark(node model.Node) string {
+	code, suffix := node.Codename, ""
+	if i := strings.IndexByte(node.Codename, '-'); i > 0 {
+		code = node.Codename[:i]
+		suffix = node.Codename[i+1:]
+	}
+
+	name := strings.TrimSpace(node.Country)
+	if name == "" {
+		name = node.Codename
+	}
+
+	label := name
+	if flag := flagEmoji(code); flag != "" {
+		label = flag + " " + name
+	}
+	if suffix != "" {
+		label += " · " + suffix
+	}
+	return label
+}
+
+// flagEmoji converts an ISO-3166-1 alpha-2 country code into its Unicode
+// regional-indicator flag emoji (e.g. "FI" -> "🇫🇮"). Returns "" for anything
+// that is not exactly two A-Z letters so callers can fall back to plain text.
+func flagEmoji(code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if len(code) != 2 {
+		return ""
+	}
+	var b strings.Builder
+	for i := 0; i < 2; i++ {
+		c := code[i]
+		if c < 'A' || c > 'Z' {
+			return ""
+		}
+		b.WriteRune(rune(0x1F1E6 + rune(c-'A')))
+	}
+	return b.String()
 }
 
 func tierAllows(userTier, minTier model.SubscriptionTier) bool {
