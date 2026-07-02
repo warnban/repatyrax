@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/base64"
+	"log/slog"
 	"os"
 	"strconv"
 )
@@ -25,6 +27,7 @@ type Config struct {
 	CryptoPayToken string
 
 	AdminUsername         string
+	AdminPassword         string
 	AdminPasswordHash     string
 	AdminJWTSecret        string
 	TelegramSupportToken  string
@@ -52,7 +55,8 @@ func Load() *Config {
 		CryptoPayToken: getEnv("CRYPTO_PAY_TOKEN", ""),
 
 		AdminUsername:         getEnv("ADMIN_USERNAME", ""),
-		AdminPasswordHash:     getEnv("ADMIN_PASSWORD_HASH", ""),
+		AdminPassword:         getEnv("ADMIN_PASSWORD", ""),
+		AdminPasswordHash:     loadAdminPasswordHash(),
 		AdminJWTSecret:        getEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
 		TelegramSupportToken:  getEnv("TELEGRAM_SUPPORT_BOT_TOKEN", ""),
 		TelegramSupportBotURL: getEnv("TELEGRAM_SUPPORT_BOT_URL", "https://t.me/tyrax_support_bot"),
@@ -73,4 +77,23 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// loadAdminPasswordHash reads a bcrypt hash from ADMIN_PASSWORD_HASH or, if unset,
+// base64-decodes ADMIN_PASSWORD_HASH_B64. The B64 form avoids Docker Compose eating
+// $ characters in .env values.
+func loadAdminPasswordHash() string {
+	if h := os.Getenv("ADMIN_PASSWORD_HASH"); h != "" {
+		return h
+	}
+	b64 := os.Getenv("ADMIN_PASSWORD_HASH_B64")
+	if b64 == "" {
+		return ""
+	}
+	decoded, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		slog.Warn("admin: invalid ADMIN_PASSWORD_HASH_B64", slog.String("error", err.Error()))
+		return ""
+	}
+	return string(decoded)
 }

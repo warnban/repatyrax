@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/subtle"
 	"errors"
 	"log/slog"
 	"strconv"
@@ -67,7 +68,7 @@ type ticketReplyRequest struct {
 
 // Login — POST /api/v1/admin/auth/login
 func (h *AdminHandler) Login(c *fiber.Ctx) error {
-	if h.cfg.AdminUsername == "" || h.cfg.AdminPasswordHash == "" {
+	if !h.adminAuthEnabled() {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"status": "error", "message": "ADMIN ACCESS DISABLED",
 		})
@@ -85,7 +86,7 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 			"status": "error", "message": "ACCESS DENIED",
 		})
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(req.Password)); err != nil {
+	if !h.verifyAdminPassword(req.Password) {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status": "error", "message": "ACCESS DENIED",
 		})
@@ -119,6 +120,23 @@ func (h *AdminHandler) signAdminToken(username string) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(h.cfg.AdminJWTSecret))
+}
+
+func (h *AdminHandler) adminAuthEnabled() bool {
+	if h.cfg.AdminUsername == "" {
+		return false
+	}
+	return h.cfg.AdminPasswordHash != "" || h.cfg.AdminPassword != ""
+}
+
+func (h *AdminHandler) verifyAdminPassword(password string) bool {
+	if h.cfg.AdminPasswordHash != "" {
+		return bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(password)) == nil
+	}
+	if h.cfg.AdminPassword != "" {
+		return subtle.ConstantTimeCompare([]byte(password), []byte(h.cfg.AdminPassword)) == 1
+	}
+	return false
 }
 
 // Stats — GET /api/v1/admin/stats
