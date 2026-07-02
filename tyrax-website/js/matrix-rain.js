@@ -13,6 +13,7 @@
 
   function initMatrixRain() {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(max-width: 768px)').matches) return;
 
     const canvas = document.getElementById('matrix-rain');
     if (!canvas) return;

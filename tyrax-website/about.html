@@ -13,7 +13,12 @@
   <meta property="og:title" content="О сервисе TYRAX">
   <meta property="og:description" content="Протокол доступа. Автодиагностика. Без разрешения.">
   <meta property="og:url" content="https://tyrax.tech/about.html">
-  <meta property="og:image" content="https://tyrax.tech/assets/tyrax-icon.png">
+  <meta property="og:image" content="https://tyrax.tech/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" href="/css/main.css" as="style">
 </head>
 <body class="scanlines">
   <canvas id="matrix-rain" aria-hidden="true"></canvas>
@@ -51,8 +56,8 @@
       <div class="page-hero">
         <div class="container">
           <p class="section-label">// О СЕРВИСЕ</p>
-          <h1>TYRAX — НЕ VPN. ПРОТОКОЛ ДОСТУПА.</h1>
-          <p>Мы убираем ограничения. Без разрешения. Без объяснений.</p>
+          <h1>TYRAX — VPN-ПРОТОКОЛ ДОСТУПА</h1>
+          <p>Не очередной VPN с ручной настройкой. Протокол, который думает за тебя. Без разрешения.</p>
         </div>
       </div>
 
@@ -79,8 +84,9 @@
 
         <h2>Платформы</h2>
         <p>
-          <strong>Windows</strong> — нативный клиент с фоновым сервисом, системным треем и автообновлением.
-          <strong>Android</strong> — приложение с терминальным интерфейсом, VpnService и Xray-core.
+          <strong>Windows</strong> — <a href="/vpn-windows.html">VPN для Windows</a>, нативный клиент с фоновым сервисом.
+          <strong>Android</strong> — <a href="/vpn-android.html">VPN для Android</a>, VpnService и Xray-core.
+          <strong>iPhone / Mac</strong> — <a href="/vpn-iphone.html">VPN для iPhone</a>, <a href="/vpn-mac.html">VPN для Mac</a> через Happ.
         </p>
 
         <h2>Философия</h2>
@@ -107,13 +113,54 @@
 
     <footer class="site-footer">
       <div class="container">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <a href="/" class="logo">
+              <img src="/assets/tyrax-icon.png" alt="TYRAX" width="36" height="36">
+              TYRAX
+            </a>
+            <p>Протокол доступа. VPN для компьютера и телефона. 3 ГБ бесплатно без рекламы.</p>
+          </div>
+          <div class="footer-col">
+            <h4>VPN</h4>
+            <ul>
+              <li><a href="/vpn-windows.html">VPN для Windows</a></li>
+              <li><a href="/vpn-android.html">VPN для Android</a></li>
+              <li><a href="/vpn-iphone.html">VPN для iPhone</a></li>
+              <li><a href="/vpn-mac.html">VPN для Mac</a></li>
+              <li><a href="/free.html">Бесплатный VPN</a></li>
+              <li><a href="/obhod-blokirovok.html">Обход блокировок</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Технологии</h4>
+            <ul>
+              <li><a href="/vless-vpn.html">VLESS VPN</a></li>
+              <li><a href="/wireguard-vpn.html">WireGuard VPN</a></li>
+              <li><a href="/split-tunnel.html">Split Tunnel</a></li>
+              <li><a href="/no-logs.html">No Logs</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Ресурсы</h4>
+            <ul>
+              <li><a href="/guides.html">Инструкция</a></li>
+              <li><a href="/blog.html">Блог</a></li>
+              <li><a href="/contacts.html">Контакты</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Компания</h4>
+            <ul>
+              <li><a href="/about.html">О сервисе</a></li>
+              <li><a href="/privacy.html">Политика конфиденциальности</a></li>
+              <li><a href="/terms.html">Пользовательское соглашение</a></li>
+            </ul>
+          </div>
+        </div>
         <div class="footer-bottom">
           <span>© 2026 TYRAX · tyrax.tech</span>
-          <span>
-            <a href="/privacy.html">Политика конфиденциальности</a>
-            ·
-            <a href="/terms.html">Пользовательское соглашение</a>
-          </span>
+          <span>БЕЗ РАЗРЕШЕНИЯ</span>
         </div>
       </div>
     </footer>

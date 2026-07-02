@@ -1,12 +1,32 @@
 User-agent: *
 Allow: /
 
+# AI search crawlers — allow retrieval and citations
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
 Sitemap: https://tyrax.tech/sitemap.xml
 
-# Primary landing pages for crawlers
-Allow: /index.html
-Allow: /free.html
-Allow: /about.html
-Allow: /contacts.html
-Allow: /terms.html
-Allow: /privacy.html
+# LLM site summary
+# https://tyrax.tech/llms.txt
