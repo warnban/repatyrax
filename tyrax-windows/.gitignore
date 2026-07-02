@@ -1,0 +1,23 @@
+# .NET build output
+bin/
+obj/
+
+# Rider / VS
+.vs/
+.idea/
+*.user
+
+# Publish + installer output
+publish/
+Releases/
+dist/
+installer/Output/
+
+# Local logs
+*.log
+
+# Native engines — fetched via engines/fetch-engines.ps1, not committed
+engines/*.exe
+engines/*.dll
+engines/*.dat
+engines/*.zip

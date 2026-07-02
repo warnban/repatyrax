@@ -1,0 +1,89 @@
+<UserControl x:Class="Tyrax.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="{StaticResource TyraxBlack}">
+
+    <Grid Margin="20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="НАСТРОЙКИ" Style="{StaticResource TyraxHeadline}" FontSize="26" Margin="0,0,0,16" />
+
+        <ScrollViewer Grid.Row="1" Style="{StaticResource TyraxScrollViewer}">
+            <StackPanel>
+                <Border BorderBrush="{StaticResource TyraxDim}" BorderThickness="1" Padding="16" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="АВТОЗАПУСК" Foreground="{StaticResource TyraxWhite}"
+                                       FontFamily="{StaticResource TyraxFont}" FontWeight="Black" FontSize="14" />
+                            <TextBlock Text="ЗАПУСКАТЬ TYRAX ПРИ ВХОДЕ В WINDOWS"
+                                       Style="{StaticResource TyraxLabel}" FontSize="10" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" IsChecked="{Binding AutostartEnabled}"
+                                  Style="{StaticResource TyraxCheckBox}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
+                <Border BorderBrush="{StaticResource TyraxDim}" BorderThickness="1" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="ЛИЧНОСТЬ" Style="{StaticResource TyraxLabel}" />
+                        <TextBlock Text="{Binding DeviceLine}" Foreground="{StaticResource TyraxWhite}"
+                                   FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="12"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" />
+                        <Button Content="ОТКРЫТЬ TELEGRAM-БОТА" Command="{Binding OpenBotCommand}"
+                                HorizontalAlignment="Left" Margin="0,12,0,0"
+                                Style="{StaticResource TyraxGhostButton}"
+                                Foreground="{StaticResource TyraxRed}" FontSize="12" />
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{StaticResource TyraxDim}" BorderThickness="1" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="СБОРКА" Style="{StaticResource TyraxLabel}" />
+                        <TextBlock Text="{Binding VersionLine}" Foreground="{StaticResource TyraxWhite}"
+                                   FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="12"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{StaticResource TyraxDim}" BorderThickness="1" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="О СЕРВИСЕ" Style="{StaticResource TyraxLabel}" />
+                        <Button Content="ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ" Command="{Binding OpenPrivacyCommand}"
+                                HorizontalAlignment="Left" Margin="0,12,0,0"
+                                Style="{StaticResource TyraxGhostButton}"
+                                Foreground="{StaticResource TyraxWhite}" FontSize="12" />
+                        <Button Content="ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ" Command="{Binding OpenTermsCommand}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                Style="{StaticResource TyraxGhostButton}"
+                                Foreground="{StaticResource TyraxWhite}" FontSize="12" />
+                        <Button Content="ПОДДЕРЖКА" Command="{Binding OpenSupportCommand}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                Style="{StaticResource TyraxGhostButton}"
+                                Foreground="{StaticResource TyraxRed}" FontSize="12" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <StackPanel>
+                <Button Content="ВЫЙТИ" Command="{Binding SignOutCommand}"
+                        Background="Transparent" BorderBrush="{StaticResource TyraxRed}" BorderThickness="1"
+                        Foreground="{StaticResource TyraxRed}" Cursor="Hand" Padding="0,10"
+                        FontFamily="{StaticResource TyraxFont}" FontWeight="Black" FontSize="13" />
+            </StackPanel>
+            <Button Command="{Binding BackCommand}" Style="{StaticResource TyraxBackButton}" VerticalAlignment="Bottom" />
+        </Grid>
+    </Grid>
+</UserControl>

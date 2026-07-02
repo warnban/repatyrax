@@ -13,6 +13,9 @@ type Config struct {
 	TelegramBotURL      string
 	TelegramBotUsername string
 	SupportEmail        string
+	WebsiteURL          string
+	PublicAPIURL        string
+	WindowsAppVersion   string
 	Port                string
 
 	FreeKassaShopID      int
@@ -30,7 +33,10 @@ func Load() *Config {
 		TelegramProxy:       getEnv("TELEGRAM_PROXY", ""),
 		TelegramBotURL:      getEnv("TELEGRAM_BOT_URL", "https://t.me/tyraxvpnbot"),
 		TelegramBotUsername: getEnv("TELEGRAM_BOT_USERNAME", "tyraxvpnbot"),
-		SupportEmail:        getEnv("SUPPORT_EMAIL", "support@tyrax.app"),
+		SupportEmail:        getEnv("SUPPORT_EMAIL", "support@tyrax.tech"),
+		WebsiteURL:          getEnv("WEBSITE_URL", "https://tyrax.tech"),
+		PublicAPIURL:        getEnv("PUBLIC_API_URL", "https://api.tyrax.tech"),
+		WindowsAppVersion:   getEnv("WINDOWS_APP_VERSION", "1.0.11"),
 		Port:                getEnv("PORT", "8080"),
 
 		FreeKassaShopID:      getEnvInt("FREEKASSA_SHOP_ID", 0),

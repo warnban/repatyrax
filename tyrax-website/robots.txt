@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tyrax.tech/sitemap.xml
+
+# Primary landing pages for crawlers
+Allow: /index.html
+Allow: /free.html
+Allow: /about.html
+Allow: /contacts.html
+Allow: /terms.html
+Allow: /privacy.html

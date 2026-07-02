@@ -1,0 +1,62 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{409870D2-80C0-411B-A66D-11E2E0B9746E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tyrax.Core", "src\Tyrax.Core\Tyrax.Core.csproj", "{3B5447CF-B344-412B-9909-AD522A511546}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tyrax.Ipc", "src\Tyrax.Ipc\Tyrax.Ipc.csproj", "{1C2DAA2A-8963-46D2-8744-C619BF2416CF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tyrax.Data", "src\Tyrax.Data\Tyrax.Data.csproj", "{5C3E7430-A7FD-41C8-98AC-9867695AE9E5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tyrax.Tunnel", "src\Tyrax.Tunnel\Tyrax.Tunnel.csproj", "{12DC6B7F-9857-4766-A3F8-1DA2CF53D522}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tyrax.Service", "src\Tyrax.Service\Tyrax.Service.csproj", "{C46688D3-D5D8-425F-9BF3-74C20E05B363}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tyrax.App", "src\Tyrax.App\Tyrax.App.csproj", "{05C6F250-BFB4-4701-BD18-4DC4ECF50F07}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3B5447CF-B344-412B-9909-AD522A511546}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B5447CF-B344-412B-9909-AD522A511546}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B5447CF-B344-412B-9909-AD522A511546}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B5447CF-B344-412B-9909-AD522A511546}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1C2DAA2A-8963-46D2-8744-C619BF2416CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1C2DAA2A-8963-46D2-8744-C619BF2416CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1C2DAA2A-8963-46D2-8744-C619BF2416CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1C2DAA2A-8963-46D2-8744-C619BF2416CF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C3E7430-A7FD-41C8-98AC-9867695AE9E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C3E7430-A7FD-41C8-98AC-9867695AE9E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C3E7430-A7FD-41C8-98AC-9867695AE9E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C3E7430-A7FD-41C8-98AC-9867695AE9E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12DC6B7F-9857-4766-A3F8-1DA2CF53D522}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12DC6B7F-9857-4766-A3F8-1DA2CF53D522}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12DC6B7F-9857-4766-A3F8-1DA2CF53D522}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12DC6B7F-9857-4766-A3F8-1DA2CF53D522}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C46688D3-D5D8-425F-9BF3-74C20E05B363}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C46688D3-D5D8-425F-9BF3-74C20E05B363}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C46688D3-D5D8-425F-9BF3-74C20E05B363}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C46688D3-D5D8-425F-9BF3-74C20E05B363}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05C6F250-BFB4-4701-BD18-4DC4ECF50F07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05C6F250-BFB4-4701-BD18-4DC4ECF50F07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05C6F250-BFB4-4701-BD18-4DC4ECF50F07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05C6F250-BFB4-4701-BD18-4DC4ECF50F07}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3B5447CF-B344-412B-9909-AD522A511546} = {409870D2-80C0-411B-A66D-11E2E0B9746E}
+		{1C2DAA2A-8963-46D2-8744-C619BF2416CF} = {409870D2-80C0-411B-A66D-11E2E0B9746E}
+		{5C3E7430-A7FD-41C8-98AC-9867695AE9E5} = {409870D2-80C0-411B-A66D-11E2E0B9746E}
+		{12DC6B7F-9857-4766-A3F8-1DA2CF53D522} = {409870D2-80C0-411B-A66D-11E2E0B9746E}
+		{C46688D3-D5D8-425F-9BF3-74C20E05B363} = {409870D2-80C0-411B-A66D-11E2E0B9746E}
+		{05C6F250-BFB4-4701-BD18-4DC4ECF50F07} = {409870D2-80C0-411B-A66D-11E2E0B9746E}
+	EndGlobalSection
+EndGlobal

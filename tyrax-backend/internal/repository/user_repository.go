@@ -24,4 +24,8 @@ type UserRepository interface {
 	// Telegram deep-link auth flow.
 	CreateTelegramAuthToken(ctx context.Context, token string, expiresAt time.Time) error
 	ConsumeConfirmedTelegramToken(ctx context.Context, token string) (userID string, found bool, err error)
+
+	// Happ / external subscription feed.
+	FindBySubscriptionToken(ctx context.Context, token string) (*model.User, error)
+	EnsureSubscriptionToken(ctx context.Context, userID string) (string, error)
 }

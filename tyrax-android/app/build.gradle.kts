@@ -6,6 +6,24 @@ plugins {
     alias(libs.plugins.hilt.android)
 }
 
+import java.util.Properties
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.reader(Charsets.UTF_8).use { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
+fun Properties.requireKeystore(key: String): String {
+    val value = getProperty(key)?.trim()
+    require(!value.isNullOrEmpty()) {
+        "keystore.properties is missing '$key'. Copy keystore.properties.example and fill in values."
+    }
+    return value
+}
+
 android {
     namespace = "com.tyrax"
     compileSdk {
@@ -21,15 +39,27 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Device is arm64-v8a; shipping only this ABI keeps the APK small enough
-        // to survive a flaky USB install (the multi-ABI debug APK was ~174 MB).
+        // RuStore requires 64-bit native libs when shipping .so; arm64-v8a covers
+        // all modern phones and keeps the release artifact small.
         ndk {
             abiFilters += "arm64-v8a"
         }
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties.requireKeystore("storeFile"))
+                storePassword = keystoreProperties.requireKeystore("storePassword")
+                keyAlias = keystoreProperties.requireKeystore("keyAlias")
+                keyPassword = keystoreProperties.requireKeystore("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

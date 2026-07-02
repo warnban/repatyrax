@@ -1,0 +1,305 @@
+using System.Net.NetworkInformation;
+using Microsoft.Extensions.Logging;
+using Tyrax.Core.Models;
+using Tyrax.Ipc;
+using Tyrax.Service.Engines;
+using Tyrax.Service.Net;
+using Tyrax.Tunnel;
+
+namespace Tyrax.Service;
+
+/// <summary>
+/// Owns the PROTOCOL lifecycle on the privileged side. Brings the tunnel up by
+/// (1) adapting the backend config for native TUN, (2) starting <c>xray.exe</c>
+/// (WinTun inbound), (3) wiring routes/DNS — and tears it
+/// all down in reverse. Connect/disconnect are serialized by a semaphore.
+///
+/// <para>While connected, a monitor loop watches the engines (self-heal is left to
+/// the UI supervisor: a dead engine or a sustained health failure ends in
+/// <see cref="TunnelState.Error"/>, which the UI reacts to by switching node) and
+/// probes tunnel health through the SOCKS inbound. A network-change handler
+/// re-pins the node route so Wi-Fi ↔ Ethernet ↔ LTE handoffs don't strand it.</para>
+/// </summary>
+public sealed class TunnelSupervisor : IAsyncDisposable
+{
+    // Generous grace + interval so a busy-but-live tunnel is never mistaken for
+    // dead; only a sustained run of failures triggers a degrade. Mirrors Android.
+    private static readonly TimeSpan Grace = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(30);
+    // Desktop links to distant nodes (FI/PL) routinely need more than 9s for a cold
+    // TLS probe through xhttp+reality; Android keeps 9s on mobile where the supervisor
+    // shares the same radio as the tunnel. 18s avoids false NODE DEGRADED on Windows.
+    private const long ThrottleMs = 18_000;
+    private const int MaxFails = 4;
+
+    private readonly ILogger<TunnelSupervisor> _logger;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _stateLock = new();
+
+    private EnginePaths? _paths;
+    private XrayProcess? _xray;
+    private NetworkConfigurator? _net;
+    private CancellationTokenSource? _monitorCts;
+    private NetworkAddressChangedEventHandler? _netChangeHandler;
+
+    private TunnelState _state = TunnelState.Disconnected;
+    private string? _codename;
+    private string? _message;
+    private long _txBytes;
+    private long _rxBytes;
+    public TunnelSupervisor(ILogger<TunnelSupervisor> logger) => _logger = logger;
+
+    /// <summary>Raised whenever the tunnel status changes, so the IPC server can push it.</summary>
+    public event Action<IpcStatus>? StatusChanged;
+
+    public IpcStatus Snapshot()
+    {
+        lock (_stateLock)
+        {
+            return new IpcStatus
+            {
+                State = _state,
+                Codename = _codename,
+                Message = _message,
+                TxBytes = _txBytes,
+                RxBytes = _rxBytes,
+            };
+        }
+    }
+
+    public async Task<IpcStatus> ConnectAsync(IpcCommand cmd, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cmd.ConfigJson) || string.IsNullOrEmpty(cmd.Codename))
+            return Set(TunnelState.Error, null, "INVALID CONFIG");
+
+        var nodeHost = XrayConfigInspector.GetProxyHost(cmd.ConfigJson);
+        if (string.IsNullOrEmpty(nodeHost))
+            return Set(TunnelState.Error, null, "INVALID CONFIG");
+
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await TeardownAsync(ct); // ensure a clean slate
+            Set(TunnelState.Connecting, cmd.Codename, null);
+            _logger.LogInformation("BREACHING NETWORK: node {Codename} ({Host})", cmd.Codename, nodeHost);
+
+            _paths ??= new EnginePaths();
+
+            var configJson = XrayWindowsConfigAdapter.AdaptForNativeTun(cmd.ConfigJson);
+            _xray = new XrayProcess(_paths, _logger);
+            await _xray.StartAsync(configJson, ct);
+
+            _net = new NetworkConfigurator(_logger);
+            await _net.ApplyAsync(nodeHost, cmd.SplitDomains ?? Array.Empty<string>(), ct);
+
+            var status = Set(TunnelState.Connected, cmd.Codename, null);
+            StartMonitors();
+            return status;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "BREACH FAILED");
+            await TeardownAsync(CancellationToken.None);
+            var message = ex is InvalidOperationException or TimeoutException
+                ? ex.Message
+                : "CONNECTION FAILED. NODE UNAVAILABLE.";
+            return Set(TunnelState.Error, null, message);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<IpcStatus> DisconnectAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            Set(TunnelState.Disconnecting, _codename, null);
+            _logger.LogInformation("LEAVING SYSTEM");
+            await TeardownAsync(ct);
+            return Set(TunnelState.Disconnected, null, null);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    // ── Monitoring: stats + watchdog + health + handoff ────────────────────────
+
+    private void StartMonitors()
+    {
+        _monitorCts = new CancellationTokenSource();
+        var token = _monitorCts.Token;
+
+        _ = Task.Run(() => StatsLoopAsync(token), token);
+        _ = Task.Run(() => MonitorLoopAsync(token), token);
+
+        _netChangeHandler = (_, _) => OnNetworkChanged();
+        NetworkChange.NetworkAddressChanged += _netChangeHandler;
+    }
+
+    private void StopMonitors()
+    {
+        if (_netChangeHandler is not null)
+        {
+            NetworkChange.NetworkAddressChanged -= _netChangeHandler;
+            _netChangeHandler = null;
+        }
+        _monitorCts?.Cancel();
+        _monitorCts?.Dispose();
+        _monitorCts = null;
+    }
+
+    private async Task StatsLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            if (NetworkStats.TryRead(TunnelConstants.AdapterName, out var tx, out var rx))
+                PushStats(tx, rx);
+            try { await Task.Delay(1000, token); }
+            catch (OperationCanceledException) { break; }
+        }
+    }
+
+    /// <summary>
+    /// Watches the live tunnel. A dead engine or a sustained health failure ends
+    /// the tunnel in Error so the UI supervisor can switch node. Runs until the
+    /// tunnel leaves Connected or monitoring is cancelled.
+    /// </summary>
+    private async Task MonitorLoopAsync(CancellationToken token)
+    {
+        try { await Task.Delay(Grace, token); }
+        catch (OperationCanceledException) { return; }
+
+        var fails = 0;
+        var sinceProbe = TimeSpan.Zero;
+
+        while (!token.IsCancellationRequested)
+        {
+            lock (_stateLock) { if (_state != TunnelState.Connected) return; }
+
+            // Watchdog: an engine crash is an immediate degrade.
+            if (_xray is { IsRunning: false })
+            {
+                _logger.LogWarning("xray died → degrading");
+                _ = DegradeAsync("ENGINE FAILED");
+                return;
+            }
+
+            sinceProbe += Tick;
+            if (sinceProbe >= ProbeInterval)
+            {
+                sinceProbe = TimeSpan.Zero;
+                var result = await TunnelHealth.ProbeAsync(token);
+                if (!result.Ok || result.ElapsedMs > ThrottleMs) fails++;
+                else fails = 0;
+                _logger.LogDebug("health ok={Ok} took={Ms}ms fails={Fails}", result.Ok, result.ElapsedMs, fails);
+
+                if (fails >= MaxFails)
+                {
+                    _ = DegradeAsync("NODE DEGRADED");
+                    return;
+                }
+            }
+
+            try { await Task.Delay(Tick, token); }
+            catch (OperationCanceledException) { return; }
+        }
+    }
+
+    /// <summary>Network handoff: re-pin the node route through the new gateway.</summary>
+    private void OnNetworkChanged()
+    {
+        _ = Task.Run(async () =>
+        {
+            NetworkConfigurator? net;
+            lock (_stateLock)
+            {
+                if (_state != TunnelState.Connected) return;
+                net = _net;
+            }
+            if (net is null) return;
+
+            _logger.LogInformation("network changed → re-pinning node route");
+            var ok = await net.RepinNodeAsync(CancellationToken.None);
+            if (!ok) _ = DegradeAsync("NETWORK CHANGED");
+        });
+    }
+
+    /// <summary>
+    /// Tears the tunnel down and reports Error. Serialized through the gate and a
+    /// no-op if the user already disconnected or a reconnect is in flight.
+    /// </summary>
+    private async Task DegradeAsync(string reason)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            lock (_stateLock) { if (_state != TunnelState.Connected) return; }
+            _logger.LogWarning("degrade: {Reason}", reason);
+            await TeardownAsync(CancellationToken.None);
+            Set(TunnelState.Error, null, reason);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private void PushStats(long tx, long rx)
+    {
+        IpcStatus status;
+        lock (_stateLock)
+        {
+            if (_state != TunnelState.Connected) return;
+            _txBytes = tx;
+            _rxBytes = rx;
+            status = new IpcStatus { State = _state, Codename = _codename, TxBytes = tx, RxBytes = rx };
+        }
+        StatusChanged?.Invoke(status);
+    }
+
+    /// <summary>Reverses everything in dependency order. Individually fault-tolerant.</summary>
+    private async Task TeardownAsync(CancellationToken ct)
+    {
+        StopMonitors();
+        lock (_stateLock) { _txBytes = 0; _rxBytes = 0; }
+
+        TunnelHealth.Reset();
+
+        if (_net is not null)
+        {
+            try { await _net.RevertAsync(ct); } catch (Exception ex) { _logger.LogWarning(ex, "route revert"); }
+            _net = null;
+        }
+        if (_xray is not null)
+        {
+            await _xray.DisposeAsync();
+            _xray = null;
+        }
+    }
+
+    private IpcStatus Set(TunnelState state, string? codename, string? message)
+    {
+        IpcStatus status;
+        lock (_stateLock)
+        {
+            _state = state;
+            _codename = codename;
+            _message = message;
+            status = new IpcStatus { State = state, Codename = codename, Message = message };
+        }
+        StatusChanged?.Invoke(status);
+        return status;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await TeardownAsync(CancellationToken.None);
+        _gate.Dispose();
+    }
+}

@@ -28,3 +28,8 @@ tyrax-backend/.env
 .DS_Store
 Thumbs.db
 *.log
+.cursor/
+
+# Website download binaries (committed for deploy via git pull)
+!tyrax-website/download/
+!tyrax-website/download/**/*

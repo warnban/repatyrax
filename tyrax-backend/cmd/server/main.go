@@ -59,6 +59,10 @@ func main() {
 	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, panelSyncer, trafficSvc, nodeBalancer)
 	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient)
 	inviteSvc  := service.NewInviteService(userRepo, inviteRepo)
+	happSubSvc := service.NewHappSubscriptionService(
+		userRepo, deviceRepo, nodeRepo, vpnSvc, panelSyncer, trafficSvc,
+		cfg.PublicAPIURL, cfg.WebsiteURL, cfg.TelegramBotURL,
+	)
 
 	// Traffic accounting sweep — reads node panels, credits usage, blocks FREE
 	// identities over quota. Fail-open: never affects the tunnel on error.
@@ -70,12 +74,14 @@ func main() {
 	// ── Telegram bot worker ────────────────────────────────────────────────────
 	// Full bot: auth deep links, account, config delivery, devices, payments.
 	// No-op if TELEGRAM_BOT_TOKEN is unset.
-	go telegrambot.Start(cfg, db, vpnSvc, paymentSvc)
+	go telegrambot.Start(cfg, db, vpnSvc, paymentSvc, happSubSvc)
 
 	// ── Handlers ─────────────────────────────────────────────────────────────
 	authH    := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.TelegramBotUsername)
 	vpnH     := handler.NewVPNHandler(vpnSvc)
 	paymentH := handler.NewPaymentHandler(paymentSvc, inviteSvc, deviceRepo, userRepo, trafficSvc)
+	subH     := handler.NewSubscriptionHandler(happSubSvc)
+	dlH      := handler.NewDownloadHandler(cfg.WebsiteURL, cfg.WindowsAppVersion)
 
 	// ── App ───────────────────────────────────────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -97,6 +103,12 @@ func main() {
 	// ── Public webhook routes (no JWT, no rate limit — external services) ──────
 	app.Post("/webhooks/freekassa",  paymentH.FreekassaWebhook)
 	app.Post("/webhooks/crypto-pay", paymentH.CryptoPayWebhook)
+
+	// Happ subscription feed (iOS / macOS). Token auth — no JWT.
+	app.Get("/sub/:token", subH.HappFeed)
+
+	// Desktop release manifest (Windows in-app update checker).
+	app.Get("/download/windows/latest.json", dlH.WindowsLatest)
 
 	// ── API v1 ────────────────────────────────────────────────────────────────
 	api := app.Group("/api/v1")

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Инструкция по подключению TYRAX — Android, Windows, iPhone, Mac</title>
+  <meta name="description" content="Пошаговая инструкция подключения TYRAX на Android, Windows, iPhone и Mac. Скачать клиент, Happ для iOS, подписка через Telegram-бот.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tyrax.tech/guides.html">
+  <link rel="icon" href="/assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/css/main.css">
+
+  <meta property="og:title" content="Инструкция TYRAX — подключение на всех устройствах">
+  <meta property="og:description" content="Android, Windows, iPhone, Mac. Нативные клиенты и Happ + VLESS Reality XHTTP.">
+  <meta property="og:url" content="https://tyrax.tech/guides.html">
+  <meta property="og:image" content="https://tyrax.tech/assets/tyrax-icon.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Как подключить TYRAX",
+    "description": "Инструкция по установке и подключению протокола TYRAX на Android, Windows, iPhone и Mac",
+    "url": "https://tyrax.tech/guides.html",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Android",
+        "text": "Скачайте APK с tyrax.tech, установите приложение TYRAX, войдите через Telegram и нажмите ENTER."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Windows",
+        "text": "Скачайте TYRAX-Setup.exe, установите клиент, войдите и нажмите ENTER."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "iPhone / iPad",
+        "text": "Установите Happ из App Store, получите подписку TYRAX в Telegram-боте и импортируйте URL в Happ."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Mac",
+        "text": "Установите Happ (DMG или App Store), получите подписку в Telegram-боте и подключитесь через Happ."
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="scanlines">
+  <canvas id="matrix-rain" aria-hidden="true"></canvas>
+
+  <div class="page-wrap">
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="/" class="logo">
+          <img src="/assets/tyrax-icon.png" alt="TYRAX" width="36" height="36">
+          TYRAX
+        </a>
+        <nav class="nav-desktop" aria-label="Навигация">
+          <a href="/">Главная</a>
+          <a href="/guides.html" aria-current="page">Инструкция</a>
+          <a href="/free.html">Бесплатный VPN</a>
+          <a href="/about.html">О сервисе</a>
+        </nav>
+        <div class="nav-cta nav-desktop">
+          <a href="/download/tyrax.apk" class="btn btn-primary btn-nav" data-dl="android" download>СКАЧАТЬ ANDROID</a>
+          <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-outline btn-nav" data-dl="windows" download>СКАЧАТЬ WINDOWS</a>
+        </div>
+        <button class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav">MENU</button>
+      </div>
+    </header>
+
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Мобильная навигация">
+      <a href="/">Главная</a>
+      <a href="/guides.html">Инструкция</a>
+      <a href="/free.html">Бесплатный VPN</a>
+      <a href="/about.html">О сервисе</a>
+      <a href="/contacts.html">Контакты</a>
+    </nav>
+
+    <main>
+      <div class="page-hero">
+        <div class="container">
+          <p class="section-label">// DEPLOY</p>
+          <h1>ПОДКЛЮЧЕНИЕ ПО УСТРОЙСТВАМ</h1>
+          <p>Четыре платформы. Один протокол. Выбери своё устройство — следуй шагам до ACCESS GRANTED.</p>
+        </div>
+      </div>
+
+      <section class="guides-section">
+        <div class="container">
+          <div class="device-tabs" role="tablist" aria-label="Платформы">
+            <button class="device-tab active" role="tab" id="tab-android" aria-selected="true" aria-controls="panel-android" data-target="android">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 2H6.477A4.477 4.477 0 002 6.477v11.046A4.477 4.477 0 006.477 22h11.046A4.477 4.477 0 0022 17.523V6.477A4.477 4.477 0 0017.523 2zM12 18.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm3.75-7.5h-1.5v4.5h-4.5v-4.5H8.25L12 6.75l3.75 4.25z"/></svg>
+              Android
+            </button>
+            <button class="device-tab" role="tab" id="tab-windows" aria-selected="false" aria-controls="panel-windows" data-target="windows">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5L10.5 4v16.08L3 18.5V5.5zm9 14.58V4l9-1.5v16.08L12 20.08z"/></svg>
+              Windows
+            </button>
+            <button class="device-tab" role="tab" id="tab-ios" aria-selected="false" aria-controls="panel-ios" data-target="ios">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+              iPhone / iPad
+            </button>
+            <button class="device-tab" role="tab" id="tab-mac" aria-selected="false" aria-controls="panel-mac" data-target="mac">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm-1 18H7v-2h10v2zm0-4H7v-2h10v2zm0-4H7V8h10v4z"/></svg>
+              Mac
+            </button>
+          </div>
+
+          <article class="device-panel active" id="panel-android" role="tabpanel" aria-labelledby="tab-android">
+            <header class="device-panel-head">
+              <span class="device-badge">НАТИВНЫЙ КЛИЕНТ</span>
+              <h2>ANDROID</h2>
+              <p>Полная автоматизация: автодиагностика, автовыбор сервера, тихий реконнект Wi-Fi ↔ LTE.</p>
+            </header>
+            <ol class="guide-steps">
+              <li class="guide-step">
+                <span class="step-num">01</span>
+                <div class="step-body">
+                  <h3>Скачай APK</h3>
+                  <p>Официальный release с tyrax.tech. Без сторонних магазинов.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">02</span>
+                <div class="step-body">
+                  <h3>Установи приложение</h3>
+                  <p>Разреши установку из неизвестных источников, если система спросит.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">03</span>
+                <div class="step-body">
+                  <h3>Войди в систему</h3>
+                  <p>Telegram или email — как в приложении. Аккаунт один на все платформы.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">04</span>
+                <div class="step-body">
+                  <h3>ENTER</h3>
+                  <p>Один экран — один статус. ACCESS GRANTED или OUTSIDE SYSTEM.</p>
+                </div>
+              </li>
+            </ol>
+            <div class="guide-actions">
+              <a href="/download/tyrax.apk" class="btn btn-primary" data-dl="android" download rel="noopener">СКАЧАТЬ APK</a>
+              <a href="https://t.me/tyraxvpnbot" class="btn btn-outline" rel="noopener">TELEGRAM-БОТ</a>
+            </div>
+            <p class="guide-meta">Android 8.0+ · ARM64 / ARM32 · FREE: 3 ГБ/мес, 1 устройство</p>
+          </article>
+
+          <article class="device-panel" id="panel-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+            <header class="device-panel-head">
+              <span class="device-badge">НАТИВНЫЙ КЛИЕНТ</span>
+              <h2>WINDOWS</h2>
+              <p>Фоновый туннель, системный трей, автозапуск. Протокол работает без твоего участия.</p>
+            </header>
+            <ol class="guide-steps">
+              <li class="guide-step">
+                <span class="step-num">01</span>
+                <div class="step-body">
+                  <h3>Скачай installer</h3>
+                  <p>TYRAX-Setup.exe с официального сайта. Windows 10/11 x64.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">02</span>
+                <div class="step-body">
+                  <h3>Установи клиент</h3>
+                  <p>Installer остановит старые процессы TYRAX перед обновлением. Перезапуск не нужен.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">03</span>
+                <div class="step-body">
+                  <h3>Авторизация</h3>
+                  <p>Войди через Telegram или email — тот же аккаунт, что на Android.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">04</span>
+                <div class="step-body">
+                  <h3>ENTER</h3>
+                  <p>Клиент сам выберет лучшую ноду и протокол. Следи за статусом в трее.</p>
+                </div>
+              </li>
+            </ol>
+            <div class="guide-actions">
+              <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-primary" data-dl="windows" download rel="noopener">СКАЧАТЬ INSTALLER</a>
+              <a href="https://t.me/tyraxvpnbot" class="btn btn-outline" rel="noopener">TELEGRAM-БОТ</a>
+            </div>
+            <p class="guide-meta">Windows 10/11 · x64 · Split tunnel RU встроен</p>
+          </article>
+
+          <article class="device-panel" id="panel-ios" role="tabpanel" aria-labelledby="tab-ios" hidden>
+            <header class="device-panel-head">
+              <span class="device-badge device-badge-happ">HAPP + ПОДПИСКА</span>
+              <h2>IPHONE / IPAD</h2>
+              <p>На iOS нативного клиента нет — используем Happ и подписку TYRAX. Протокол: VLESS + Reality + XHTTP.</p>
+            </header>
+            <ol class="guide-steps">
+              <li class="guide-step">
+                <span class="step-num">01</span>
+                <div class="step-body">
+                  <h3>Установи Happ</h3>
+                  <p>Скачай из App Store. Happ — клиент для proxy/VLESS, серверы настраиваешь через подписку.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">02</span>
+                <div class="step-body">
+                  <h3>Получи подписку TYRAX</h3>
+                  <p>Открой <a href="https://t.me/tyraxvpnbot" rel="noopener">Telegram-бот</a> → «iPhone/iPad». Нужен аккаунт TYRAX (войди через приложение на Android/Windows или /start в боте).</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">03</span>
+                <div class="step-body">
+                  <h3>Импортируй URL</h3>
+                  <p>Нажми «Добавить подписку» в боте или Happ → + → Import from URL. Вставь ссылку подписки.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">04</span>
+                <div class="step-body">
+                  <h3>CONNECT</h3>
+                  <p>Обнови подписку в Happ, выбери сервер TYRAX, подключись. Лимит FREE и дата — в статусной строке Happ.</p>
+                </div>
+              </li>
+            </ol>
+            <div class="guide-actions">
+              <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" class="btn btn-primary" rel="noopener">HAPP — APP STORE</a>
+              <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973" class="btn btn-outline" rel="noopener">HAPP — APP STORE RU</a>
+              <a href="https://t.me/tyraxvpnbot" class="btn btn-outline" rel="noopener">ПОДПИСКА В БОТЕ</a>
+            </div>
+            <p class="guide-meta">iOS 15+ · Устройство HAPP = 1 слот · WireGuard не используем — DPI блокирует</p>
+          </article>
+
+          <article class="device-panel" id="panel-mac" role="tabpanel" aria-labelledby="tab-mac" hidden>
+            <header class="device-panel-head">
+              <span class="device-badge device-badge-happ">HAPP + ПОДПИСКА</span>
+              <h2>MAC</h2>
+              <p>Windows — нативный TYRAX. Mac — Happ с той же подпиской VLESS Reality XHTTP.</p>
+            </header>
+            <ol class="guide-steps">
+              <li class="guide-step">
+                <span class="step-num">01</span>
+                <div class="step-body">
+                  <h3>Установи Happ</h3>
+                  <p>DMG для macOS (универсальный arm64/intel) или версия из App Store.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">02</span>
+                <div class="step-body">
+                  <h3>Подписка TYRAX</h3>
+                  <p><a href="https://t.me/tyraxvpnbot" rel="noopener">Telegram-бот</a> → «Windows/Mac» → «Подписка TYRAX для Mac». Скопируй URL.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">03</span>
+                <div class="step-body">
+                  <h3>Import from URL</h3>
+                  <p>Happ → + → Import from URL. Подписка обновляется автоматически раз в час.</p>
+                </div>
+              </li>
+              <li class="guide-step">
+                <span class="step-num">04</span>
+                <div class="step-body">
+                  <h3>CONNECT</h3>
+                  <p>Выбери ноду TYRAX, подключись. Тариф и лимит — в строке статуса Happ и в боте «Мой аккаунт».</p>
+                </div>
+              </li>
+            </ol>
+            <div class="guide-actions">
+              <a href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.macOS.universal.dmg" class="btn btn-primary" rel="noopener">HAPP — DMG</a>
+              <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" class="btn btn-outline" rel="noopener">HAPP — APP STORE</a>
+              <a href="https://t.me/tyraxvpnbot" class="btn btn-outline" rel="noopener">ПОДПИСКА В БОТЕ</a>
+            </div>
+            <p class="guide-meta">macOS 12+ · iOS и Mac делят слот HAPP на FREE · Управление тарифом — в TYRAX / боте</p>
+          </article>
+
+          <aside class="guide-notice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+              <strong>Лимит устройств на FREE</strong>
+              <p>1 устройство на тарифе FREE. Happ на iPhone и Mac использует один слот «HAPP». Если лимит исчерпан — удали старое устройство в боте: «Мои устройства».</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-bottom">
+          <span>© 2026 TYRAX · tyrax.tech</span>
+          <span>
+            <a href="/privacy.html">Политика конфиденциальности</a>
+            ·
+            <a href="/terms.html">Пользовательское соглашение</a>
+          </span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/downloads.js" defer></script>
+  <script src="/js/matrix-rain.js" defer></script>
+  <script src="/js/guides.js" defer></script>
+  <script src="/js/main.js" defer></script>
+</body>
+</html>

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -16,7 +18,7 @@ import (
 const userQueryTimeout = 5 * time.Second
 
 // userColumns is the full column set scanned into model.User, in scan order.
-const userColumns = "id, email, password_hash, telegram_id, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until"
+const userColumns = "id, email, password_hash, telegram_id, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token"
 
 var (
 	ErrUserNotFound = errors.New("IDENTITY NOT FOUND")
@@ -224,6 +226,73 @@ func (r *userRepository) ConsumeConfirmedTelegramToken(ctx context.Context, toke
 	return userID, true, nil
 }
 
+func (r *userRepository) FindBySubscriptionToken(ctx context.Context, token string) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	query := "SELECT " + userColumns + " FROM users WHERE subscription_token = $1"
+	row := r.db.QueryRow(ctx, query, token)
+	user, err := scanUser(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find user by subscription token: %w", err)
+	}
+	return user, nil
+}
+
+func (r *userRepository) EnsureSubscriptionToken(ctx context.Context, userID string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	var existing *string
+	err := r.db.QueryRow(ctx,
+		"SELECT subscription_token FROM users WHERE id = $1", userID).Scan(&existing)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrUserNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("read subscription token: %w", err)
+	}
+	if existing != nil && *existing != "" {
+		return *existing, nil
+	}
+
+	token, err := newSubscriptionToken()
+	if err != nil {
+		return "", err
+	}
+
+	tag, err := r.db.Exec(ctx,
+		`UPDATE users SET subscription_token = $1
+		  WHERE id = $2 AND (subscription_token IS NULL OR subscription_token = '')`,
+		token, userID)
+	if err != nil {
+		return "", fmt.Errorf("set subscription token: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		err = r.db.QueryRow(ctx,
+			"SELECT subscription_token FROM users WHERE id = $1", userID).Scan(&existing)
+		if err != nil {
+			return "", fmt.Errorf("read subscription token after race: %w", err)
+		}
+		if existing != nil && *existing != "" {
+			return *existing, nil
+		}
+		return "", fmt.Errorf("set subscription token: no row updated")
+	}
+	return token, nil
+}
+
+func newSubscriptionToken() (string, error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate subscription token: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
 // scanUser reads a users row in userColumns order.
 func scanUser(row rowScanner) (*model.User, error) {
 	var u model.User
@@ -245,6 +314,7 @@ func scanUser(row rowScanner) (*model.User, error) {
 		&u.TrafficUsedBytes,
 		&u.TrafficPeriodStart,
 		&u.BlockedUntil,
+		&u.SubscriptionToken,
 	); err != nil {
 		return nil, err
 	}

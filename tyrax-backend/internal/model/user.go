@@ -28,6 +28,8 @@ type User struct {
 	// BlockedUntil is non-nil while a FREE user is locked out after exhausting
 	// their quota; the tunnel stays blocked until this instant passes.
 	BlockedUntil *time.Time `db:"blocked_until" json:"blocked_until,omitempty"`
+	// SubscriptionToken is an opaque secret embedded in Happ subscription URLs.
+	SubscriptionToken *string `db:"subscription_token" json:"-"`
 }
 
 type Node struct {

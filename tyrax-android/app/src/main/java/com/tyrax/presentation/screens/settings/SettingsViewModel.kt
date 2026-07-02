@@ -113,9 +113,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     private companion object {
-        // TODO: point these at the real hosted documents before release.
-        const val PRIVACY_URL = "https://tyrax.app/privacy"
-        const val TERMS_URL = "https://tyrax.app/terms"
+        const val PRIVACY_URL = "https://tyrax.tech/privacy.html"
+        const val TERMS_URL = "https://tyrax.tech/terms.html"
         const val SUPPORT_URL = "https://t.me/tyraxvpnbot"
     }
 }

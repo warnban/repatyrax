@@ -1,0 +1,69 @@
+<Window x:Class="Tyrax.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:Tyrax.App.Views"
+        mc:Ignorable="d"
+        Title="TYRAX"
+        Icon="Assets/tyrax.ico"
+        Height="640" Width="420"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanMinimize"
+        AllowsTransparency="True"
+        Background="{StaticResource TyraxBlack}">
+
+    <Border BorderBrush="{StaticResource TyraxRed}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- ── Custom header (no default chrome) ── -->
+            <Grid Grid.Row="0" Height="44" Background="{StaticResource TyraxBlack}"
+                  MouseLeftButtonDown="Header_DragMove">
+                <TextBlock Text="TYRAX" Margin="16,0,0,0"
+                           VerticalAlignment="Center"
+                           FontFamily="{StaticResource TyraxFont}"
+                           FontWeight="Black" FontSize="18"
+                           Foreground="{StaticResource TyraxWhite}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="—" Click="Minimize_Click" Width="44" Height="44"
+                            Style="{StaticResource TyraxGhostButton}" FontSize="16" />
+                    <Button Content="X" Click="Close_Click" Width="44" Height="44"
+                            Style="{StaticResource TyraxGhostButton}" FontSize="14" />
+                </StackPanel>
+            </Grid>
+
+            <!-- ── Gate: Onboarding → Auth while signed out, Main/Nodes once authenticated ──
+                 NOTE: each screen sets its own DataContext, so its Visibility must bind the
+                 shell's state via RelativeSource (not the child VM, which lacks these props). -->
+            <Grid Grid.Row="1">
+                <!-- Signed-out area: onboarding first-run, then auth -->
+                <Grid Visibility="{Binding IsAuthenticated, Converter={StaticResource InverseBoolToVis}}">
+                    <views:OnboardingView DataContext="{Binding Onboarding}"
+                                          Visibility="{Binding DataContext.NeedsOnboarding, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}" />
+                    <views:AuthView DataContext="{Binding Auth}"
+                                    Visibility="{Binding DataContext.NeedsOnboarding, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBoolToVis}}" />
+                </Grid>
+
+                <Grid Visibility="{Binding IsAuthenticated, Converter={StaticResource BoolToVis}}">
+                    <views:MainView DataContext="{Binding Main}"
+                                    Visibility="{Binding DataContext.CurrentScreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumToVis}, ConverterParameter=Main}" />
+                    <views:NodesView DataContext="{Binding Nodes}"
+                                     Visibility="{Binding DataContext.CurrentScreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumToVis}, ConverterParameter=Nodes}" />
+                    <views:DevicesView DataContext="{Binding Devices}"
+                                       Visibility="{Binding DataContext.CurrentScreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumToVis}, ConverterParameter=Devices}" />
+                    <views:SubscriptionView DataContext="{Binding Subscription}"
+                                            Visibility="{Binding DataContext.CurrentScreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumToVis}, ConverterParameter=Subscription}" />
+                    <views:PaymentView DataContext="{Binding Payment}"
+                                       Visibility="{Binding DataContext.CurrentScreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumToVis}, ConverterParameter=Payment}" />
+                    <views:SettingsView DataContext="{Binding Settings}"
+                                        Visibility="{Binding DataContext.CurrentScreen, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumToVis}, ConverterParameter=Settings}" />
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

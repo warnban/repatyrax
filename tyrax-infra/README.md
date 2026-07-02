@@ -9,6 +9,9 @@ See `../VLESS_XHTTP_PLAN.md` for the full rationale and decisions.
 ## Layout
 ```
 tyrax-infra/
+├── website/
+│   ├── deploy-website.sh           # manual rsync (fallback)
+│   └── deploy-website.ps1
 ├── node/
 │   ├── deploy-node.sh              # harden + BBR + 3x-ui + Reality keygen
 │   └── inbound-xhttp-reality.json  # 3x-ui inbound template (Profile A)
@@ -50,6 +53,28 @@ tyrax-infra/
     `ufw allow from <backend-ip> to any port 2053`) so the backend can reach the
     3x-ui API for per-device UUID sync (see UUID-sync task below).
 12. Build the Android app with `BASE_URL=https://api.<domain>/`, install, connect.
+
+## Deploy via GitHub (`repatyrax`)
+
+Production servers pull from **https://github.com/warnban/repatyrax.git**:
+
+```bash
+# Local — push changes
+git push repatyrax master
+
+# Backend (api.tyrax.tech — 5.129.195.144)
+ssh root@5.129.195.144
+cd /opt/tyrax && git pull
+cd tyrax-backend && docker compose up -d --build
+
+# Website (tyrax.tech — 147.45.108.102)
+ssh root@147.45.108.102
+cd /opt/tyrax && git pull
+# nginx root → /opt/tyrax/tyrax-website (or rsync to /var/www/tyrax.tech)
+```
+
+Windows installer lives in `tyrax-website/download/windows/TYRAX-Setup.exe` —
+stage locally with `tyrax-windows/build/stage-website-download.ps1` before push.
 
 ### Phase 2 — scale
 13. Repeat node steps in DE/NL; add a DB row per node. Auto-select picks best ping.

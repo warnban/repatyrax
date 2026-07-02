@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Политика конфиденциальности — TYRAX</title>
+  <meta name="description" content="Политика конфиденциальности TYRAX. Как мы обрабатываем данные пользователей VPN-сервиса tyrax.tech. No-logs политика, минимальный сбор данных.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tyrax.tech/privacy.html">
+  <link rel="icon" href="/assets/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body class="scanlines">
+  <canvas id="matrix-rain" aria-hidden="true"></canvas>
+
+  <div class="page-wrap">
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="/" class="logo">
+          <img src="/assets/tyrax-icon.png" alt="TYRAX" width="36" height="36">
+          TYRAX
+        </a>
+        <nav class="nav-desktop" aria-label="Навигация">
+          <a href="/">Главная</a>
+          <a href="/about.html">О сервисе</a>
+          <a href="/terms.html">Пользовательское соглашение</a>
+          <a href="/contacts.html">Контакты</a>
+        </nav>
+        <button class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav">MENU</button>
+      </div>
+    </header>
+
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Мобильная навигация">
+      <a href="/">Главная</a>
+      <a href="/about.html">О сервисе</a>
+      <a href="/terms.html">Пользовательское соглашение</a>
+      <a href="/contacts.html">Контакты</a>
+    </nav>
+
+    <main>
+      <div class="page-hero">
+        <div class="container">
+          <p class="section-label">// LEGAL</p>
+          <h1>ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ</h1>
+          <p>Последнее обновление: 2 июля 2026</p>
+        </div>
+      </div>
+
+      <div class="container content-block">
+        <h2>1. Общие положения</h2>
+        <p>
+          Настоящая Политика конфиденциальности описывает порядок сбора, использования и защиты
+          персональных данных пользователей сервиса TYRAX (tyrax.tech) — протокола доступа
+          для Windows и Android. Использование сервиса также регулируется
+          <a href="/terms.html">Пользовательским соглашением</a>.
+        </p>
+
+        <h2>2. Какие данные мы собираем</h2>
+        <ul>
+          <li><strong>Аккаунт:</strong> email или идентификатор Telegram при регистрации</li>
+          <li><strong>Устройства:</strong> идентификатор устройства, публичный ключ WireGuard для выдачи конфигурации</li>
+          <li><strong>Подписка:</strong> тариф, срок действия, объём использованного трафика (для лимита FREE)</li>
+          <li><strong>Технические логи:</strong> события подключения/отключения (timestamp, node ID) — без содержимого трафика</li>
+        </ul>
+
+        <h2>3. No-logs политика</h2>
+        <p>
+          TYRAX не ведёт логи содержимого интернет-трафика пользователей.
+          Мы не отслеживаем посещённые сайты, DNS-запросы содержимого или передаваемые данные через туннель.
+          Собираются только метаданные, необходимые для работы сервиса: факт подключения, объём трафика (байты), выбранная нода.
+        </p>
+
+        <h2>4. Цели обработки данных</h2>
+        <ul>
+          <li>Предоставление доступа к протоколу и VPN-туннелю</li>
+          <li>Учёт тарифов и лимита трафика (FREE: 3 ГБ/мес)</li>
+          <li>Техническая поддержка и безопасность инфраструктуры</li>
+          <li>Обработка платежей (через платёжных провайдеров)</li>
+        </ul>
+
+        <h2>5. Передача данных третьим лицам</h2>
+        <p>
+          Мы не продаём персональные данные. Данные могут передаваться только:
+          платёжным провайдерам (для обработки подписки), хостинг-провайдерам (для инфраструктуры),
+          по требованию закона в рамках действующего законодательства.
+        </p>
+
+        <h2>6. Реклама</h2>
+        <p>
+          TYRAX не показывает рекламу на всех тарифах, включая FREE.
+          Мы не используем данные пользователей для таргетированной рекламы.
+        </p>
+
+        <h2>7. Cookies и аналитика</h2>
+        <p>
+          Сайт tyrax.tech может использовать минимальные технические cookies для работы.
+          Мы не используем сторонние рекламные трекеры. Аналитика — только агрегированная, без идентификации пользователя.
+        </p>
+
+        <h2>8. Хранение и безопасность</h2>
+        <p>
+          Данные хранятся на защищённых серверах. Применяются стандартные меры: шифрование при передаче (TLS),
+          ограничение доступа, регулярные обновления. WireGuard-ключи генерируются на стороне клиента;
+          приватные ключи не покидают устройство пользователя.
+        </p>
+
+        <h2>9. Права пользователя</h2>
+        <p>
+          Вы можете запросить удаление аккаунта и связанных данных, обратившись в
+          <a href="/contacts.html">службу поддержки</a>.
+          Вы можете отозвать согласие на обработку данных, удалив аккаунт в приложении или через поддержку.
+        </p>
+
+        <h2>10. Изменения политики</h2>
+        <p>
+          Мы можем обновлять эту политику. Актуальная версия всегда доступна на tyrax.tech/privacy.html.
+          Существенные изменения будут сообщены через приложение или email.
+        </p>
+
+        <h2>11. Контакты</h2>
+        <p>
+          По вопросам конфиденциальности: <a href="mailto:privacy@tyrax.tech">privacy@tyrax.tech</a><br>
+          Поддержка: <a href="/contacts.html">контакты поддержки TYRAX</a>
+        </p>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-bottom">
+          <span>© 2026 TYRAX · tyrax.tech</span>
+          <span>
+            <a href="/terms.html">Пользовательское соглашение</a>
+            ·
+            <a href="/">На главную</a>
+          </span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/matrix-rain.js" defer></script>
+  <script src="/js/main.js" defer></script>
+</body>
+</html>

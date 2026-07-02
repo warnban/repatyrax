@@ -1,0 +1,68 @@
+<UserControl x:Class="Tyrax.App.Views.OnboardingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="{StaticResource TyraxBlack}">
+
+    <Grid Margin="32,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <TextBlock Text="{Binding StepText}" Style="{StaticResource TyraxLabel}" FontSize="12" />
+            <Button Content="ПРОПУСТИТЬ" Command="{Binding SkipCommand}"
+                    Style="{StaticResource TyraxGhostButton}" HorizontalAlignment="Right" />
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Visibility="{Binding Index, Converter={StaticResource EnumToVis}, ConverterParameter=0}">
+                <TextBlock Text="ОНИ ХОТЯТ" Style="{StaticResource TyraxHeadline}" FontSize="34" TextAlignment="Center" />
+                <TextBlock Text="РЕШАТЬ ЗА ТЕБЯ" Style="{StaticResource TyraxHeadline}" FontSize="34" TextAlignment="Center" />
+                <TextBlock Text="ЧТО СМОТРЕТЬ" Style="{StaticResource TyraxHeadline}" FontSize="34" TextAlignment="Center" />
+            </StackPanel>
+
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Visibility="{Binding Index, Converter={StaticResource EnumToVis}, ConverterParameter=1}">
+                <TextBlock Text="С НАМИ —" Style="{StaticResource TyraxHeadline}" FontSize="34" TextAlignment="Center" />
+                <TextBlock Text="РЕШАЕШЬ ТЫ" Foreground="{StaticResource TyraxRed}"
+                           FontFamily="{StaticResource TyraxFont}" FontWeight="Black" FontSize="34" TextAlignment="Center" />
+            </StackPanel>
+
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Visibility="{Binding Index, Converter={StaticResource EnumToVis}, ConverterParameter=2}">
+                <TextBlock Text="ВОЙДИ В" Style="{StaticResource TyraxHeadline}" FontSize="30" TextAlignment="Center" />
+                <TextBlock Text="СВОБОДНЫЙ" Style="{StaticResource TyraxHeadline}" FontSize="30" TextAlignment="Center" />
+                <TextBlock Text="ИНТЕРНЕТ" Foreground="{StaticResource TyraxRed}"
+                           FontFamily="{StaticResource TyraxFont}" FontWeight="Black" FontSize="30" TextAlignment="Center" />
+
+                <Border Margin="0,32,0,0" BorderBrush="{StaticResource TyraxDim}" BorderThickness="1"
+                        Padding="16" Cursor="Hand">
+                    <Border.InputBindings>
+                        <MouseBinding MouseAction="LeftClick" Command="{Binding OpenBotCommand}" />
+                    </Border.InputBindings>
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TyraxDim}" TextWrapping="Wrap"
+                                   FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="11">
+                            <Run Text="1. ОТКРОЙ " /><Run Text="@tyraxvpnbot" Foreground="{StaticResource TyraxRed}" /><Run Text=" В TELEGRAM" />
+                        </TextBlock>
+                        <TextBlock Text="2. НАЖМИ START — АККАУНТ СОЗДАСТСЯ САМ"
+                                   Foreground="{StaticResource TyraxDim}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="11" />
+                        <TextBlock Text="3. ВЕРНИСЬ СЮДА И ВОЙДИ"
+                                   Foreground="{StaticResource TyraxDim}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   FontFamily="{StaticResource TyraxFont}" FontWeight="Bold" FontSize="11" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <Button Grid.Row="2" Content="{Binding ActionLabel}" Style="{StaticResource TyraxButton}"
+                Command="{Binding NextCommand}" Margin="0,16,0,20" />
+    </Grid>
+</UserControl>

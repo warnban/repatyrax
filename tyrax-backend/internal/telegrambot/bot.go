@@ -47,7 +47,9 @@ const (
 	updateTimeoutSec = 60
 	dbOpTimeout      = 5 * time.Second
 
-	apkURL = "https://tyrax.app/download/tyrax.apk"
+	happIOSAppStoreGlobal = "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215"
+	happIOSAppStoreRU     = "https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"
+	happMacDMG            = "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.macOS.universal.dmg"
 )
 
 // Reply-keyboard button captions. The text a user sends when tapping a reply
@@ -84,23 +86,22 @@ const (
 	msgPaymentErr     = "⚠️ Ошибка создания платежа. Попробуй позже."
 
 	msgAndroid = "▓ ANDROID ▓\n\n" +
-		"Скачай приложение TYRAX\n" +
+		"Скачай приложение TYRAX (release APK)\n" +
 		"Войди через Telegram или email\n" +
 		"Нажми ENTER — готово"
 
 	msgIOS = "▓ iPHONE / iPAD ▓\n\n" +
-		"Нативного приложения пока нет.\n" +
-		"Подключайся через WireGuard — 1 минута:\n\n" +
-		"Установи WireGuard из App Store\n" +
-		"Нажми кнопку ниже — пришлём конфиг\n" +
-		"Открой файл → Import to WireGuard → готово"
+		"1. Установи Happ — кнопка App Store ниже\n" +
+		"2. Нажми «Добавить подписку» — URL TYRAX\n" +
+		"3. В Happ: обнови подписку → CONNECT\n\n" +
+		"Протокол: VLESS + Reality + XHTTP\n" +
+		"Лимит FREE и дата подписки — в строке статуса Happ"
 
 	msgPC = "▓ WINDOWS / MAC ▓\n\n" +
-		"Нативного приложения пока нет.\n" +
-		"Подключайся через WireGuard — 2 минуты:\n\n" +
-		"Скачай WireGuard: wireguard.com/install\n" +
-		"Нажми кнопку ниже — пришлём конфиг\n" +
-		"Открой WireGuard → Import tunnel → готово"
+		"Windows: нативный клиент TYRAX (кнопка ниже)\n\n" +
+		"Mac: установи Happ (DMG или App Store)\n" +
+		"Затем «Подписка TYRAX для Mac»\n\n" +
+		"VLESS + Reality + XHTTP · WireGuard не используем"
 
 	msgHelp = "▓ ПОМОЩЬ ▓\n\n" +
 		"Не подключается? Тормозит?\n" +
@@ -119,12 +120,13 @@ type Bot struct {
 	deviceRepo repository.DeviceRepository
 	vpnSvc     service.VPNService
 	paymentSvc service.PaymentService
+	happSub    service.HappSubscriptionService
 }
 
 // Start launches the Telegram bot worker. Safe to run in a goroutine: if the
 // token is unset or the API rejects it, the worker logs and returns without
 // affecting the rest of the server.
-func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paymentSvc service.PaymentService) {
+func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paymentSvc service.PaymentService, happSub service.HappSubscriptionService) {
 	if cfg.TelegramToken == "" {
 		slog.Warn("telegram bot: TELEGRAM_BOT_TOKEN unset, worker disabled")
 		return
@@ -145,6 +147,7 @@ func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paym
 		deviceRepo: repository.NewDeviceRepository(db),
 		vpnSvc:     vpnSvc,
 		paymentSvc: paymentSvc,
+		happSub:    happSub,
 	}
 
 	u := tgbotapi.NewUpdate(0)
@@ -186,9 +189,9 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	case btnAndroid:
 		b.handleAndroid(msg.Chat.ID)
 	case btnIOS:
-		b.handlePlatformWG(msg.Chat.ID, msgIOS, "ios")
+		b.sendHappSubscription(msg.Chat.ID, msg.From.ID, msgIOS, "ios")
 	case btnPC:
-		b.handlePlatformWG(msg.Chat.ID, msgPC, "pc")
+		b.handlePC(msg.Chat.ID, msg.From.ID)
 	case btnDevices:
 		b.handleDevices(msg)
 	case btnBuy:
@@ -298,10 +301,113 @@ func (b *Bot) handleAndroid(chatID int64) {
 	m := tgbotapi.NewMessage(chatID, msgAndroid)
 	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Скачать APK", apkURL),
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Скачать APK", b.androidDownloadURL()),
 		),
 	)
 	b.send(m)
+}
+
+func (b *Bot) handlePC(chatID int64, telegramID int64) {
+	slog.Info("telegram bot", slog.String("action", "pc"), slog.Int64("telegram_id", chatID))
+	m := tgbotapi.NewMessage(chatID, msgPC+"\n\n📖 "+b.websiteURL()+"/guides.html#mac")
+	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ TYRAX для Windows", b.windowsDownloadURL()),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Happ для Mac (DMG)", happMacDMG),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Happ — App Store", happIOSAppStoreGlobal),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📡 Подписка TYRAX для Mac", "tyrax_happ:mac"),
+		),
+	)
+	b.send(m)
+}
+
+func (b *Bot) androidDownloadURL() string {
+	return b.websiteURL() + "/download/tyrax.apk"
+}
+
+func (b *Bot) windowsDownloadURL() string {
+	return b.websiteURL() + "/download/windows/TYRAX-Setup.exe"
+}
+
+func (b *Bot) websiteURL() string {
+	base := strings.TrimRight(b.cfg.WebsiteURL, "/")
+	if base == "" {
+		return "https://tyrax.tech"
+	}
+	return base
+}
+
+func (b *Bot) sendHappSubscription(chatID int64, telegramID int64, intro, platform string) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.userRepo.FindByTelegramID(ctx, telegramID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.sendText(chatID, msgNoAccount)
+		return
+	}
+	if err != nil {
+		b.fail(chatID, "happ_find_user", telegramID, "", err)
+		return
+	}
+
+	subURL, err := b.happSub.EnsureSubscriptionURL(ctx, user.ID)
+	if errors.Is(err, service.ErrDeviceLimitReached) {
+		b.sendText(chatID, msgDeviceLimit)
+		return
+	}
+	if err != nil {
+		b.fail(chatID, "happ_sub_url", telegramID, user.ID, err)
+		return
+	}
+
+	slog.Info("telegram bot", slog.String("action", "happ_sub"), slog.String("platform", platform), slog.Int64("telegram_id", telegramID), slog.String("user_id", user.ID))
+
+	guidesHash := "ios"
+	if platform == "mac" {
+		guidesHash = "mac"
+	}
+	text := intro + "\n\n📖 " + b.websiteURL() + "/guides.html#" + guidesHash +
+		"\n\n▓ ПОДПИСКА ▓\n" + subURL + "\n\nHapp → + → Import from URL"
+	m := tgbotapi.NewMessage(chatID, text)
+	m.ReplyMarkup = b.happSubscriptionKeyboard(subURL, platform)
+	b.send(m)
+}
+
+func (b *Bot) happSubscriptionKeyboard(subURL, platform string) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	switch platform {
+	case "ios":
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ HAPP — App Store", happIOSAppStoreGlobal),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ HAPP — App Store RU", happIOSAppStoreRU),
+		))
+	case "mac":
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ HAPP для Mac (DMG)", happMacDMG),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ HAPP — App Store", happIOSAppStoreGlobal),
+		))
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonURL("📡 ДОБАВИТЬ ПОДПИСКУ", subURL),
+	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonURL("💳 КУПИТЬ / ПРОДЛИТЬ", b.cfg.TelegramBotURL),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 // handlePlatformWG sends the WireGuard onboarding copy plus a "получить конфиг"
@@ -342,7 +448,7 @@ func (b *Bot) handleDevices(msg *tgbotapi.Message) {
 	if len(devices) == 0 {
 		b.sendText(msg.Chat.ID, "▓ МОИ УСТРОЙСТВА ▓\n\n"+
 			"Устройств нет.\n"+
-			"Подключи первое через раздел Android, iOS или ПК.")
+			"Подключи первое через Android, Windows, iPhone или Mac.")
 		return
 	}
 
@@ -378,8 +484,8 @@ func (b *Bot) handleCallback(cq *tgbotapi.CallbackQuery) {
 	switch {
 	case data == "tyrax_back_tier":
 		b.editTierSelection(cq)
-	case strings.HasPrefix(data, "tyrax_config:"):
-		b.handleConfigCallback(cq, strings.TrimPrefix(data, "tyrax_config:"))
+	case strings.HasPrefix(data, "tyrax_happ:"):
+		b.handleHappCallback(cq)
 	case strings.HasPrefix(data, "tyrax_del:"):
 		b.handleDeleteCallback(cq, strings.TrimPrefix(data, "tyrax_del:"))
 	case strings.HasPrefix(data, "tyrax_tier:"):
@@ -393,50 +499,13 @@ func (b *Bot) handleCallback(cq *tgbotapi.CallbackQuery) {
 	}
 }
 
-func (b *Bot) handleConfigCallback(cq *tgbotapi.CallbackQuery, platform string) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
-	defer cancel()
-
-	user, err := b.userRepo.FindByTelegramID(ctx, cq.From.ID)
-	if errors.Is(err, repository.ErrUserNotFound) {
-		b.answerCallback(cq.ID, msgNoAccountShort)
-		return
-	}
-	if err != nil {
-		slog.Error("telegram bot", slog.String("action", "config_find_user"), slog.Int64("telegram_id", cq.From.ID), slog.String("error", err.Error()))
-		b.answerCallback(cq.ID, msgGenericErr)
-		return
-	}
-
-	label := platform + "-bot"
-	cfgRes, err := b.vpnSvc.AddDevice(ctx, user.ID, label)
-	if errors.Is(err, service.ErrDeviceLimitReached) {
-		b.answerCallback(cq.ID, msgDeviceLimit)
-		return
-	}
-	if err != nil {
-		slog.Error("telegram bot", slog.String("action", "config_add_device"), slog.String("user_id", user.ID), slog.String("error", err.Error()))
-		b.answerCallback(cq.ID, msgGenericErr)
-		return
-	}
-
-	conf := cfgRes.WireGuardConf
-	if conf == "" {
-		conf = cfgRes.VlessConf
-	}
-	if conf == "" {
-		slog.Error("telegram bot", slog.String("action", "config_empty"), slog.String("user_id", user.ID))
-		b.answerCallback(cq.ID, msgGenericErr)
-		return
-	}
-
-	filename := "tyrax-" + platform + ".conf"
-	doc := tgbotapi.NewDocument(cq.Message.Chat.ID, tgbotapi.FileBytes{Name: filename, Bytes: []byte(conf)})
-	doc.Caption = "▓ КОНФИГ TYRAX ▓\nИмпортируй файл в WireGuard."
-	b.send(doc)
-
-	slog.Info("telegram bot", slog.String("action", "config_delivered"), slog.Int64("telegram_id", cq.From.ID), slog.String("user_id", user.ID), slog.String("platform", platform))
+func (b *Bot) handleHappCallback(cq *tgbotapi.CallbackQuery) {
 	b.answerCallback(cq.ID, "")
+	intro := msgIOS
+	if strings.HasSuffix(cq.Data, ":mac") {
+		intro = "▓ MAC + HAPP ▓\n\nVLESS + Reality + XHTTP\nЛимит и подписка — в статусной строке Happ"
+	}
+	b.sendHappSubscription(cq.Message.Chat.ID, cq.From.ID, intro, "mac")
 }
 
 func (b *Bot) handleDeleteCallback(cq *tgbotapi.CallbackQuery, deviceID string) {

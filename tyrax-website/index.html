@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TYRAX — VPN для компьютера и телефона | Бесплатный VPN 3 ГБ без рекламы</title>
+  <meta name="description" content="TYRAX — самый технологичный VPN для Windows и Android. Автодиагностика сети, выбор лучшего сервера, бесплатный тариф 3 ГБ навсегда без рекламы. Скачать VPN для компьютера и телефона.">
+  <meta name="keywords" content="vpn, впн, vpn для компьютера, впн для компа, vpn для телефона, бесплатный vpn, бесплатный впн, vpn windows, vpn android, скачать vpn, протокол доступа, tyrax">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="https://tyrax.tech/">
+  <link rel="icon" href="/assets/favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="/assets/tyrax-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tyrax.tech/">
+  <meta property="og:title" content="TYRAX — VPN для компьютера и телефона без ограничений">
+  <meta property="og:description" content="Протокол доступа нового поколения. Автодиагностика, умный выбор сервера, 3 ГБ бесплатно навсегда. Windows и Android.">
+  <meta property="og:image" content="https://tyrax.tech/assets/tyrax-icon.png">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:site_name" content="TYRAX">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TYRAX — VPN для компьютера и телефона">
+  <meta name="twitter:description" content="Самый технологичный VPN-клиент. Скачать для Windows и Android. 3 ГБ бесплатно без рекламы.">
+  <meta name="twitter:image" content="https://tyrax.tech/assets/tyrax-icon.png">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="alternate" hreflang="ru" href="https://tyrax.tech/">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://tyrax.tech/#organization",
+        "name": "TYRAX",
+        "url": "https://tyrax.tech",
+        "logo": "https://tyrax.tech/assets/tyrax-icon.png",
+        "description": "Протокол доступа — самый технологичный VPN-клиент для Windows и Android",
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "support@tyrax.tech",
+          "availableLanguage": ["Russian", "English"]
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://tyrax.tech/#website",
+        "url": "https://tyrax.tech",
+        "name": "TYRAX",
+        "publisher": { "@id": "https://tyrax.tech/#organization" },
+        "inLanguage": "ru-RU"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "TYRAX",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": "Windows, Android",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "RUB",
+          "description": "Бесплатный тариф 3 ГБ в месяц без рекламы"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.8",
+          "ratingCount": "1247",
+          "bestRating": "5"
+        },
+        "description": "VPN-клиент с автодиагностикой сети, автовыбором сервера и протоколом WireGuard/VLESS",
+        "downloadUrl": "https://tyrax.tech/#download"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Как скачать VPN для компьютера?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Скачайте TYRAX для Windows с официального сайта tyrax.tech. Установите клиент, создайте аккаунт и нажмите ENTER — протокол сам выберет лучший сервер."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Есть ли бесплатный VPN без рекламы?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Да. TYRAX предоставляет бесплатный тариф FREE: 3 ГБ трафика каждый месяц, все серверы, полная автоматизация — и никакой рекламы на всех тарифах."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Работает ли VPN для телефона на Android?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "TYRAX доступен для Android. Приложение автоматически переключает серверы, диагностирует сеть и поддерживает Wi-Fi ↔ LTE без разрыва соединения."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="scanlines">
+  <canvas id="matrix-rain" aria-hidden="true"></canvas>
+
+  <div class="page-wrap">
+    <div class="promo-banner">
+      <a href="/free.html">FREE: 3 ГБ НАВСЕГДА · БЕЗ РЕКЛАМЫ · ВСЕ СЕРВЕРЫ →</a>
+    </div>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="/" class="logo">
+          <img src="/assets/tyrax-icon.png" alt="TYRAX логотип" width="36" height="36">
+          TYRAX
+        </a>
+        <nav class="nav-desktop" aria-label="Основная навигация">
+          <a href="#features">Возможности</a>
+          <a href="#pricing">Тарифы</a>
+          <a href="#download">Скачать</a>
+          <a href="/guides.html">Инструкция</a>
+          <a href="/free.html">Бесплатный VPN</a>
+          <a href="/about.html">О сервисе</a>
+        </nav>
+        <div class="nav-cta nav-desktop">
+          <a href="/download/tyrax.apk" class="btn btn-primary btn-nav" data-dl="android" download>СКАЧАТЬ ANDROID</a>
+          <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-outline btn-nav" data-dl="windows" download>СКАЧАТЬ WINDOWS</a>
+        </div>
+        <button class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav">MENU</button>
+      </div>
+    </header>
+
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Мобильная навигация">
+      <a href="#features">Возможности</a>
+      <a href="#pricing">Тарифы</a>
+      <a href="#download">Скачать</a>
+      <a href="/guides.html">Инструкция</a>
+      <a href="/free.html">Бесплатный VPN</a>
+      <a href="/about.html">О сервисе</a>
+      <a href="/contacts.html">Контакты</a>
+      <a href="/privacy.html">Политика конфиденциальности</a>
+      <a href="/terms.html">Пользовательское соглашение</a>
+    </nav>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <span class="hero-badge">БЕЗ РАЗРЕШЕНИЯ</span>
+          <h1 class="glitch" data-text="ПРОТОКОЛ ДОСТУПА">
+            ПРОТОКОЛ ДОСТУПА
+            <span class="accent">НОВОГО ПОКОЛЕНИЯ</span>
+          </h1>
+          <p class="hero-sub">
+            TYRAX — самый технологичный VPN для компьютера и телефона.
+            Сам диагностирует сеть. Сам выбирает лучший сервер. Сам меняет его, если что-то не так.
+            Ты просто нажимаешь ENTER.
+          </p>
+          <div class="hero-cta" id="download">
+            <a href="/download/tyrax.apk" class="btn btn-primary btn-lg" data-dl="android" download rel="noopener">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 2H6.477A4.477 4.477 0 002 6.477v11.046A4.477 4.477 0 006.477 22h11.046A4.477 4.477 0 0022 17.523V6.477A4.477 4.477 0 0017.523 2zM12 18.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm3.75-7.5h-1.5v4.5h-4.5v-4.5H8.25L12 6.75l3.75 4.25z"/></svg>
+              СКАЧАТЬ ДЛЯ ANDROID
+            </a>
+            <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-outline btn-lg" data-dl="windows" download rel="noopener">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5L10.5 4v16.08L3 18.5V5.5zm9 14.58V4l9-1.5v16.08L12 20.08z"/></svg>
+              СКАЧАТЬ ДЛЯ WINDOWS
+            </a>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-item">
+              <div class="stat-value">AUTO</div>
+              <div class="stat-label">Диагностика сети</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">0</div>
+              <div class="stat-label">Рекламы на всех тарифах</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">3 ГБ</div>
+              <div class="stat-label">Бесплатно каждый месяц</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="container">
+          <p class="section-label">// СИСТЕМА</p>
+          <h2 class="section-title">VPN, КОТОРЫЙ ДУМАЕТ ЗА ТЕБЯ</h2>
+          <p class="section-desc">
+            Обычный VPN требует настройки. TYRAX — протокол доступа, который сам решает проблемы.
+            Идеален как VPN для компьютера и как VPN для телефона на Android.
+          </p>
+          <div class="features-grid">
+            <article class="feature-card">
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0H5a2 2 0 01-2-2v-4m6 6h10a2 2 0 002-2v-4M3 9h18"/></svg>
+              <h3>Автовыбор сервера</h3>
+              <p>Пингует все ноды при запуске. Выбирает лучший по задержке и потерям пакетов. Меняет сервер без твоего участия, если связь деградирует.</p>
+            </article>
+            <article class="feature-card">
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <h3>Автодиагностика</h3>
+              <p>Обнаруживает блокировки, throttling и обрывы. Переключает протокол: WireGuard → VLESS/Reality → Shadowsocks → OpenVPN/TCP.</p>
+            </article>
+            <article class="feature-card">
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <h3>Тихий реконнект</h3>
+              <p>Мониторинг каждые 30 секунд. Wi-Fi ↔ LTE без разрыва. Ты не замечаешь, что протокол работает — он просто есть.</p>
+            </article>
+            <article class="feature-card">
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <h3>Split Tunnel RU</h3>
+              <p>Яндекс, VK, банки, Госуслуги — напрямую. Всё остальное — через TYRAX. Список обновляется с сервера автоматически.</p>
+            </article>
+            <article class="feature-card">
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <h3>VPN для компьютера</h3>
+              <p>Нативный клиент для Windows. Фоновый сервис, автозапуск, системный трей. Полный контроль без лишних кликов.</p>
+            </article>
+            <article class="feature-card">
+              <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+              <h3>VPN для телефона</h3>
+              <p>Android-приложение с терминальным интерфейсом. Один экран — один статус. ACCESS GRANTED или OUTSIDE SYSTEM.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing">
+        <div class="container">
+          <p class="section-label">// ДОСТУП</p>
+          <h2 class="section-title">УРОВНИ ПРОТОКОЛА</h2>
+          <p class="section-desc">
+            От бесплатного VPN на 3 ГБ до приоритетного доступа с 10 устройствами.
+            На всех тарифах — без рекламы. Никогда.
+          </p>
+          <div class="pricing-grid">
+            <article class="pricing-card">
+              <h3 class="tier-name">FREE</h3>
+              <div class="tier-price">0 ₽ <span>/ мес</span></div>
+              <p class="tier-desc">Тестовый доступ. Полная автоматизация.</p>
+              <ul class="tier-features">
+                <li><span class="tier-free-highlight">3 ГБ трафика / месяц</span></li>
+                <li>1 устройство</li>
+                <li>Все серверы (ноды)</li>
+                <li>Автореконнект и автопротокол</li>
+                <li>Без рекламы</li>
+              </ul>
+              <a href="/free.html" class="btn btn-outline btn-block">ПОЛУЧИТЬ FREE</a>
+            </article>
+            <article class="pricing-card">
+              <h3 class="tier-name">CORE</h3>
+              <div class="tier-price">199 ₽ <span>/ мес</span></div>
+              <p class="tier-desc">Базовый безлимит для двоих.</p>
+              <ul class="tier-features">
+                <li>Безлимитный трафик</li>
+                <li>2 устройства</li>
+                <li>Все серверы</li>
+                <li>Скидки: 3/6/12 мес</li>
+                <li>Без рекламы</li>
+              </ul>
+              <a href="#download" class="btn btn-outline btn-block">ENTER</a>
+            </article>
+            <article class="pricing-card featured">
+              <h3 class="tier-name">SHADOW</h3>
+              <div class="tier-price">349 ₽ <span>/ мес</span></div>
+              <p class="tier-desc">Приоритетная маршрутизация.</p>
+              <ul class="tier-features">
+                <li>Безлимитный трафик</li>
+                <li>До 5 устройств</li>
+                <li>Приоритет на нодах</li>
+                <li>Скидки: 3/6/12 мес</li>
+                <li>Без рекламы</li>
+              </ul>
+              <a href="#download" class="btn btn-primary btn-block">UNLOCK</a>
+            </article>
+            <article class="pricing-card">
+              <h3 class="tier-name">DOMINION</h3>
+              <div class="tier-price">649 ₽ <span>/ мес</span></div>
+              <p class="tier-desc">Максимальный контроль. До 10 устройств + 3 инвайта.</p>
+              <ul class="tier-features">
+                <li>Безлимитный трафик</li>
+                <li>10 устройств + 3 аккаунта</li>
+                <li>Приоритет #1 на нодах</li>
+                <li>Скидки: 3/6/12 мес</li>
+                <li>Без рекламы</li>
+              </ul>
+              <a href="#download" class="btn btn-outline btn-block">UNLOCK</a>
+            </article>
+          </div>
+          <p style="margin-top:1.5rem;font-size:0.75rem;color:var(--gray);">
+            Скидки на CORE, SHADOW, DOMINION: 3 мес — 10%, 6 мес — 15%, 12 мес — 20%.
+          </p>
+        </div>
+      </section>
+
+      <section class="download-section" aria-labelledby="download-title">
+        <div class="container">
+          <p class="section-label">// УСТАНОВКА</p>
+          <h2 class="section-title" id="download-title">СКАЧАТЬ VPN</h2>
+          <p class="section-desc">Два клика до ACCESS GRANTED. Выбери платформу. iPhone и Mac — <a href="/guides.html">инструкция</a>.</p>
+          <div class="download-grid">
+            <article class="download-card">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 2H6.477A4.477 4.477 0 002 6.477v11.046A4.477 4.477 0 006.477 22h11.046A4.477 4.477 0 0022 17.523V6.477A4.477 4.477 0 0017.523 2zM12 18.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm3.75-7.5h-1.5v4.5h-4.5v-4.5H8.25L12 6.75l3.75 4.25z"/></svg>
+              <h3>Android</h3>
+              <p>VPN для телефона. APK с официального сайта. Полная автоматизация на мобильной сети и Wi-Fi.</p>
+              <a href="/download/tyrax.apk" class="btn btn-primary btn-block" data-dl="android" download rel="noopener">СКАЧАТЬ APK</a>
+              <p class="download-meta">Android 8.0+ · <a href="/guides.html#android">Инструкция</a></p>
+            </article>
+            <article class="download-card">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5L10.5 4v16.08L3 18.5V5.5zm9 14.58V4l9-1.5v16.08L12 20.08z"/></svg>
+              <h3>Windows</h3>
+              <p>VPN для компьютера и ноутбука. Нативный клиент, фоновый туннель, автообновление.</p>
+              <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-primary btn-block" data-dl="windows" download rel="noopener">СКАЧАТЬ INSTALLER</a>
+              <p class="download-meta">Windows 10/11 · <a href="/guides.html#windows">Инструкция</a></p>
+            </article>
+            <article class="download-card">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+              <h3>iPhone / iPad</h3>
+              <p>Happ + подписка TYRAX. VLESS Reality XHTTP. Подписка через Telegram-бот.</p>
+              <a href="/guides.html#ios" class="btn btn-outline btn-block">ИНСТРУКЦИЯ + HAPP</a>
+              <p class="download-meta">iOS 15+ · App Store</p>
+            </article>
+            <article class="download-card">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm-1 18H7v-2h10v2zm0-4H7v-2h10v2zm0-4H7V8h10v4z"/></svg>
+              <h3>Mac</h3>
+              <p>Happ для macOS. Та же подписка, что на iPhone. DMG или App Store.</p>
+              <a href="/guides.html#mac" class="btn btn-outline btn-block">ИНСТРУКЦИЯ + HAPP</a>
+              <p class="download-meta">macOS 12+ · DMG / App Store</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="container">
+          <p class="section-label">// FAQ</p>
+          <h2 class="section-title">ЧАСТЫЕ ВОПРОСЫ</h2>
+          <div class="faq-list">
+            <div class="faq-item">
+              <button class="faq-question" aria-expanded="false">Как скачать VPN для компьютера бесплатно?</button>
+              <div class="faq-answer"><div class="faq-answer-inner">Скачайте TYRAX для Windows с этой страницы. Зарегистрируйтесь и активируйте тариф FREE — 3 ГБ каждый месяц без рекламы. Это полноценный VPN для компьютера, а не урезанная демо-версия.</div></div>
+            </div>
+            <div class="faq-item">
+              <button class="faq-question" aria-expanded="false">Есть ли бесплатный VPN без рекламы?</button>
+              <div class="faq-answer"><div class="faq-answer-inner">Да. TYRAX — бесплатный VPN с 3 ГБ трафика в месяц на тарифе FREE. Рекламы нет ни на одном тарифе — ни баннеров, ни видео, ни трекинга для рекламодателей.</div></div>
+            </div>
+            <div class="faq-item">
+              <button class="faq-question" aria-expanded="false">Чем TYRAX лучше других VPN?</button>
+              <div class="faq-answer"><div class="faq-answer-inner">TYRAX сам диагностирует проблемы сети, автоматически выбирает лучший сервер и переключает протокол при блокировках. Вам не нужно разбираться в настройках — протокол думает за вас.</div></div>
+            </div>
+            <div class="faq-item">
+              <button class="faq-question" aria-expanded="false">Работает ли VPN для телефона на Android?</button>
+              <div class="faq-answer"><div class="faq-answer-inner">Да. TYRAX для Android поддерживает автопереключение Wi-Fi/LTE, split tunnel для RU-сервисов и все функции автодиагностики. Скачайте APK с tyrax.tech.</div></div>
+            </div>
+            <div class="faq-item">
+              <button class="faq-question" aria-expanded="false">Какой VPN лучше для Windows?</button>
+              <div class="faq-answer"><div class="faq-answer-inner">TYRAX для Windows — нативный клиент с фоновым сервисом, автозапуском и умным выбором сервера. Подходит как VPN для компа, ноутбука и стационарного ПК.</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="seo-content">
+        <div class="container">
+          <h2>VPN для компьютера и телефона — TYRAX</h2>
+          <p>
+            Ищете надёжный VPN для компьютера? TYRAX — протокол доступа, который устанавливается на Windows за минуту
+            и работает в фоне без вашего участия. Это не просто VPN для компа — это система, которая сама выбирает
+            оптимальный сервер, переключает протокол при блокировках и восстанавливает соединение при смене сети.
+          </p>
+          <p>
+            Нужен VPN для телефона? Android-версия TYRAX предоставляет тот же уровень автоматизации: автодиагностика,
+            тихий реконнект, split tunnel для российских сервисов. Скачать VPN для Android можно напрямую с tyrax.tech —
+            без сторонних магазинов и посредников.
+          </p>
+
+          <h2>Бесплатный VPN без рекламы</h2>
+          <p>
+            Большинство бесплатных VPN показывают рекламу или продают ваши данные. TYRAX предлагает бесплатный тариф FREE:
+            3 ГБ трафика каждый месяц, доступ ко всем серверам, полная автоматизация — и ноль рекламы.
+            <a href="/free.html">Подробнее о бесплатном VPN TYRAX →</a>
+          </p>
+
+          <h2>Скачать VPN — Windows и Android</h2>
+          <ul>
+            <li><strong>VPN для Windows</strong> — tyrax.tech/download/windows/TYRAX-Setup.exe</li>
+            <li><strong>VPN для Android</strong> — tyrax.tech/download/tyrax.apk</li>
+            <li><strong>Бесплатный VPN</strong> — тариф FREE, 3 ГБ/мес, без рекламы</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <a href="/" class="logo">
+              <img src="/assets/tyrax-icon.png" alt="TYRAX" width="36" height="36">
+              TYRAX
+            </a>
+            <p>Протокол доступа. Без разрешения. VPN для компьютера и телефона нового поколения.</p>
+          </div>
+          <div class="footer-col">
+            <h4>Продукт</h4>
+            <ul>
+              <li><a href="/guides.html">Инструкция</a></li>
+              <li><a href="#download">Скачать VPN</a></li>
+              <li><a href="/free.html">Бесплатный VPN</a></li>
+              <li><a href="#pricing">Тарифы</a></li>
+              <li><a href="#features">Возможности</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Компания</h4>
+            <ul>
+              <li><a href="/about.html">О сервисе</a></li>
+              <li><a href="/contacts.html">Контакты</a></li>
+              <li><a href="/privacy.html">Политика конфиденциальности</a></li>
+              <li><a href="/terms.html">Пользовательское соглашение</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Платформы</h4>
+            <ul>
+              <li><a href="/guides.html#ios">iPhone / iPad (Happ)</a></li>
+              <li><a href="/guides.html#mac">Mac (Happ)</a></li>
+              <li><a href="/download/tyrax.apk" data-dl="android" download>VPN для Android</a></li>
+              <li><a href="/download/windows/TYRAX-Setup.exe" data-dl="windows" download>VPN для Windows</a></li>
+              <li><a href="/free.html">Бесплатный VPN 3 ГБ</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© 2026 TYRAX · tyrax.tech</span>
+          <span>БЕЗ РАЗРЕШЕНИЯ</span>
+        </div>
+        <p class="footer-keywords" aria-hidden="true">
+          vpn, впн, vpn для компьютера, впн для компа, vpn для телефона, бесплатный vpn, бесплатный впн,
+          скачать vpn, vpn windows, vpn android, vpn без рекламы, лучший vpn, быстрый vpn
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/downloads.js" defer></script>
+  <script src="/js/matrix-rain.js" defer></script>
+  <script src="/js/main.js" defer></script>
+</body>
+</html>

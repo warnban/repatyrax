@@ -1,0 +1,268 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:conv="clr-namespace:Tyrax.App.Converters">
+
+    <!-- ══ CONVERTERS ══════════════════════════════════════════════════════════ -->
+    <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+    <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
+    <conv:StringNonEmptyToVisibilityConverter x:Key="NonEmptyToVis" />
+    <conv:InverseBooleanConverter x:Key="NotBool" />
+    <conv:EnumToVisibilityConverter x:Key="EnumToVis" />
+    <conv:UsagePercentToWidthConverter x:Key="UsageBarWidth" />
+
+    <!-- ══ TYRAX PALETTE ══════════════════════════════════════════════════════ -->
+    <Color x:Key="TyraxBlackColor">#FF000000</Color>
+    <Color x:Key="TyraxWhiteColor">#FFFFFFFF</Color>
+    <Color x:Key="TyraxRedColor">#FFFF1E1E</Color>
+    <Color x:Key="TyraxDimColor">#FF6E6E6E</Color>
+    <Color x:Key="TyraxPanelColor">#FF0A0A0A</Color>
+
+    <SolidColorBrush x:Key="TyraxBlack" Color="{StaticResource TyraxBlackColor}" />
+    <SolidColorBrush x:Key="TyraxWhite" Color="{StaticResource TyraxWhiteColor}" />
+    <SolidColorBrush x:Key="TyraxRed" Color="{StaticResource TyraxRedColor}" />
+    <SolidColorBrush x:Key="TyraxDim" Color="{StaticResource TyraxDimColor}" />
+    <SolidColorBrush x:Key="TyraxPanel" Color="{StaticResource TyraxPanelColor}" />
+
+    <FontFamily x:Key="TyraxFont">Consolas, Segoe UI</FontFamily>
+
+    <!-- ══ TYPOGRAPHY ═════════════════════════════════════════════════════════ -->
+    <Style x:Key="TyraxHeadline" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxWhite}" />
+        <Setter Property="FontWeight" Value="Black" />
+        <Setter Property="FontSize" Value="40" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="Aliased" />
+    </Style>
+
+    <Style x:Key="TyraxLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxDim}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- ══ PRIMARY BUTTON ═════════════════════════════════════════════════════ -->
+    <Style x:Key="TyraxButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxWhite}" />
+        <Setter Property="Background" Value="{StaticResource TyraxBlack}" />
+        <Setter Property="BorderBrush" Value="{StaticResource TyraxWhite}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="FontWeight" Value="Black" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="Padding" Value="48,18" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource TyraxRed}" />
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource TyraxRed}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource TyraxDim}" />
+                            <Setter Property="Foreground" Value="{StaticResource TyraxDim}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Ghost / nav / back — no default WPF blue hover -->
+    <Style x:Key="TyraxGhostButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxDim}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TyraxRed}" />
+                            <Setter TargetName="border" Property="Background" Value="#22FF1E1E" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TyraxWhite}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="TyraxBackButton" TargetType="Button" BasedOn="{StaticResource TyraxGhostButton}">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Content" Value="НАЗАД" />
+    </Style>
+
+    <!-- ══ SCROLLBAR — kill the default grey chrome ═══════════════════════════ -->
+    <Style x:Key="TyraxScrollBarThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="{StaticResource TyraxRed}" Opacity="0.55" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="TyraxScrollBar" TargetType="ScrollBar">
+        <Setter Property="Background" Value="{StaticResource TyraxBlack}" />
+        <Setter Property="Width" Value="6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="{StaticResource TyraxBlack}">
+                        <Track x:Name="track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource TyraxScrollBarThumb}" />
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="TyraxScrollViewer" TargetType="ScrollViewer">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <Grid Background="{TemplateBinding Background}">
+                        <ScrollContentPresenter />
+                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                                   Style="{StaticResource TyraxScrollBar}"
+                                   Value="{TemplateBinding VerticalOffset}"
+                                   Maximum="{TemplateBinding ScrollableHeight}"
+                                   ViewportSize="{TemplateBinding ViewportHeight}"
+                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══ TEXTBOX / CHECKBOX ═══════════════════════════════════════════════════ -->
+    <Style x:Key="TyraxTextBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxWhite}" />
+        <Setter Property="Background" Value="{StaticResource TyraxPanel}" />
+        <Setter Property="BorderBrush" Value="{StaticResource TyraxDim}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="CaretBrush" Value="{StaticResource TyraxRed}" />
+        <Setter Property="SelectionBrush" Value="#44FF1E1E" />
+    </Style>
+
+    <Style x:Key="TyraxCheckBox" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TyraxRed}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border x:Name="box" Width="22" Height="22"
+                            BorderBrush="{StaticResource TyraxDim}" BorderThickness="2"
+                            Background="{StaticResource TyraxBlack}">
+                        <TextBlock x:Name="mark" Text="X" FontWeight="Black" FontSize="14"
+                                   Foreground="{StaticResource TyraxRed}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="Collapsed" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="mark" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="box" Property="BorderBrush" Value="{StaticResource TyraxRed}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="box" Property="BorderBrush" Value="{StaticResource TyraxRed}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ListBoxItem — no blue selection chrome -->
+    <Style x:Key="TyraxListItem" TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <ContentPresenter />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Chip for payment screen -->
+    <Style x:Key="TyraxChipButton" TargetType="Button">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background" Value="{StaticResource TyraxBlack}" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxWhite}" />
+        <Setter Property="BorderBrush" Value="{StaticResource TyraxDim}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="16,8">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource TyraxRed}" />
+                            <Setter Property="Foreground" Value="{StaticResource TyraxRed}" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource TyraxRed}" />
+                            <Setter Property="Foreground" Value="{StaticResource TyraxRed}" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>
