@@ -25,6 +25,24 @@
 -keepclassmembers class com.wireguard.** { *; }
 -dontwarn com.wireguard.**
 
+# ── Xray-core (libv2ray / gomobile) + tun2socks (hev-socks5-tunnel JNI) ───────
+# These are gomobile/JNI bindings resolved by NATIVE code via exact class and
+# method names. R8 renaming/removing them makes CoreController.startLoop and
+# TProxyService.TProxyStartService unresolvable at runtime -> the tunnel starts
+# but carries no traffic (silent failure in release builds only). Keep verbatim.
+-keep class libv2ray.** { *; }
+-keep interface libv2ray.** { *; }
+-keep class go.** { *; }
+-keep interface go.** { *; }
+-keep class com.v2ray.ang.service.** { *; }
+-keepclassmembers class com.v2ray.ang.service.** { *; }
+# Any class declaring native methods must keep its member names for JNI binding.
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-dontwarn libv2ray.**
+-dontwarn go.**
+
 # ── Retrofit / OkHttp ─────────────────────────────────────────────────────────
 # Keep the API service interface and its method/parameter annotations.
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
