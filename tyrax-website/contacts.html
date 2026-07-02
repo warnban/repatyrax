@@ -32,37 +32,49 @@
   </script>
 </head>
 <body class="scanlines">
+  <a class="skip-link" href="#main-content">К содержимому</a>
   <canvas id="matrix-rain" aria-hidden="true"></canvas>
 
   <div class="page-wrap">
     <header class="site-header">
       <div class="container header-inner">
         <a href="/" class="logo">
-          <img src="/assets/tyrax-icon.png" alt="TYRAX" width="36" height="36">
+          <img src="/assets/tyrax-icon.png" alt="TYRAX" width="32" height="32">
           TYRAX
         </a>
-        <nav class="nav-desktop" aria-label="Навигация">
+        <nav class="nav-desktop" aria-label="Основная навигация">
           <a href="/">Главная</a>
+          <a href="/free.html">FREE</a>
+          <a href="/vpn-windows.html">Windows</a>
+          <a href="/vpn-android.html">Android</a>
           <a href="/guides.html">Инструкция</a>
-          <a href="/free.html">Бесплатный VPN</a>
-          <a href="/about.html">О сервисе</a>
         </nav>
-        <div class="nav-cta nav-desktop">
-          <a href="/download/tyrax.apk" class="btn btn-primary btn-nav" data-dl="android" download>СКАЧАТЬ ANDROID</a>
-          <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-outline btn-nav" data-dl="windows" download>СКАЧАТЬ WINDOWS</a>
+        <div class="header-actions">
+          <div class="nav-cta">
+            <a href="/download/tyrax.apk" class="btn btn-primary btn-nav" data-dl="android" download>ANDROID</a>
+            <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-outline btn-nav" data-dl="windows" download>WINDOWS</a>
+          </div>
+          <button type="button" class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav" aria-label="Открыть меню">MENU</button>
         </div>
-        <button class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav">MENU</button>
       </div>
     </header>
 
     <nav class="mobile-nav" id="mobile-nav" aria-label="Мобильная навигация">
       <a href="/">Главная</a>
       <a href="/free.html">Бесплатный VPN</a>
+      <a href="/vpn-windows.html">VPN Windows</a>
+      <a href="/vpn-android.html">VPN Android</a>
+      <a href="/obhod-blokirovok.html">Обход блокировок</a>
+      <a href="/guides.html">Инструкция</a>
       <a href="/about.html">О сервисе</a>
-      <a href="/privacy.html">Политика</a>
+      <a href="/contacts.html" aria-current="page">Контакты</a>
+      <div class="mobile-nav-cta">
+        <a href="/download/tyrax.apk" class="btn btn-primary btn-block" data-dl="android" download>СКАЧАТЬ ANDROID</a>
+        <a href="/download/windows/TYRAX-Setup.exe" class="btn btn-outline btn-block" data-dl="windows" download>СКАЧАТЬ WINDOWS</a>
+      </div>
     </nav>
 
-    <main>
+    <main id="main-content">
       <div class="page-hero">
         <div class="container">
           <p class="section-label">// SUPPORT</p>
@@ -117,7 +129,7 @@
         <div class="footer-grid">
           <div class="footer-brand">
             <a href="/" class="logo">
-              <img src="/assets/tyrax-icon.png" alt="TYRAX" width="36" height="36">
+              <img src="/assets/tyrax-icon.png" alt="TYRAX — VPN для Windows и Android" width="32" height="32">
               TYRAX
             </a>
             <p>Поддержка VPN TYRAX. support@tyrax.tech · @tyrax_support</p>
@@ -127,7 +139,21 @@
             <ul>
               <li><a href="/vpn-windows.html">VPN для Windows</a></li>
               <li><a href="/vpn-android.html">VPN для Android</a></li>
+              <li><a href="/vpn-iphone.html">VPN для iPhone</a></li>
+              <li><a href="/vpn-mac.html">VPN для Mac</a></li>
               <li><a href="/free.html">Бесплатный VPN</a></li>
+              <li><a href="/obhod-blokirovok.html">Обход блокировок</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>Технологии</h4>
+            <ul>
+              <li><a href="/vless-vpn.html">VLESS VPN</a></li>
+              <li><a href="/wireguard-vpn.html">WireGuard VPN</a></li>
+              <li><a href="/split-tunnel.html">Split Tunnel</a></li>
+              <li><a href="/no-logs.html">No Logs</a></li>
+              <li><a href="/socks5-proxy.html">SOCKS5 прокси</a></li>
+              <li><a href="/vless-proxy.html">VLESS прокси</a></li>
             </ul>
           </div>
           <div class="footer-col">
@@ -136,14 +162,16 @@
               <li><a href="/guides.html">Инструкция</a></li>
               <li><a href="/blog-vpn-ne-rabotaet.html">VPN не работает</a></li>
               <li><a href="/blog.html">Блог</a></li>
+              <li><a href="/#download">Скачать VPN</a></li>
             </ul>
           </div>
           <div class="footer-col">
             <h4>Компания</h4>
             <ul>
               <li><a href="/about.html">О сервисе</a></li>
-              <li><a href="/privacy.html">Политика</a></li>
-              <li><a href="/terms.html">Соглашение</a></li>
+              <li><a href="/contacts.html">Контакты</a></li>
+              <li><a href="/privacy.html">Политика конфиденциальности</a></li>
+              <li><a href="/terms.html">Пользовательское соглашение</a></li>
             </ul>
           </div>
         </div>

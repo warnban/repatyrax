@@ -9,6 +9,7 @@
       const open = mobileNav.classList.toggle('open');
       menuToggle.setAttribute('aria-expanded', open);
       menuToggle.textContent = open ? 'CLOSE' : 'MENU';
+      menuToggle.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
     });
 
     mobileNav.querySelectorAll('a').forEach((link) => {
@@ -16,6 +17,7 @@
         mobileNav.classList.remove('open');
         menuToggle.setAttribute('aria-expanded', 'false');
         menuToggle.textContent = 'MENU';
+        menuToggle.setAttribute('aria-label', 'Открыть меню');
       });
     });
   }
