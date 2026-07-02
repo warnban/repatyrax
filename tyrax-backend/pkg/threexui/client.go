@@ -157,8 +157,16 @@ func (c *Client) Onlines(ctx context.Context) (int, error) {
 }
 
 // AddClient registers a VLESS client (UUID + email) and attaches it to the given
-// inbound via the 3x-ui >= 3.1 client API (POST /panel/api/clients/add). A
-// "duplicate" response is treated as success so the call is idempotent.
+// inbound via the 3x-ui >= 3.1 client API (POST /panel/api/clients/add), then
+// reloads Xray so the new UUID authenticates immediately.
+//
+// The clients/add endpoint only persists the client to the panel's SQLite DB —
+// it does NOT reload the running Xray. Without an explicit restart the new UUID
+// stays inactive (Reality serves the decoy site and the client silently "can't
+// connect"). A duplicate ("email already in use") is treated as success and
+// skips the restart: the client is already live from its original add, so there
+// is nothing to apply and we avoid tearing down every live connection on the
+// node on each reconnect / hourly subscription refresh.
 func (c *Client) AddClient(ctx context.Context, inboundID int, clientUUID, email, flow string) error {
 	body := map[string]any{
 		"client": map[string]any{
@@ -184,6 +192,26 @@ func (c *Client) AddClient(ctx context.Context, inboundID int, clientUUID, email
 		}
 		return fmt.Errorf("addClient failed: %s", r.Msg)
 	}
+	// A genuinely new client was persisted — reload Xray so it takes effect.
+	if err := c.RestartXray(ctx); err != nil {
+		return fmt.Errorf("addClient ok but xray reload failed: %w", err)
+	}
+	return nil
+}
+
+// RestartXray reloads the Xray core on the node (POST /panel/api/server/
+// restartXrayService). 3x-ui's client add/del endpoints only mutate the panel
+// DB; Xray must be reloaded for the change to become active. Reload drops live
+// connections for ~1-2s, so callers must invoke this ONLY when the client set
+// actually changed (a new add or a real removal), never on duplicates/no-ops.
+func (c *Client) RestartXray(ctx context.Context) error {
+	r, err := c.post(ctx, "/panel/api/server/restartXrayService", map[string]any{})
+	if err != nil {
+		return err
+	}
+	if !r.Success {
+		return fmt.Errorf("restartXray failed: %s", r.Msg)
+	}
 	return nil
 }
 
@@ -201,6 +229,11 @@ func (c *Client) DelClient(ctx context.Context, email string) error {
 			return nil
 		}
 		return fmt.Errorf("delClient failed: %s", r.Msg)
+	}
+	// The client was actually removed — reload Xray so it loses access now
+	// (device removal / limit enforcement must not linger in the live core).
+	if err := c.RestartXray(ctx); err != nil {
+		return fmt.Errorf("delClient ok but xray reload failed: %w", err)
 	}
 	return nil
 }
