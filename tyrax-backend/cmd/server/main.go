@@ -12,6 +12,7 @@ import (
 
 	"github.com/tyrax/tyrax-backend/internal/config"
 	"github.com/tyrax/tyrax-backend/internal/handler"
+	"github.com/tyrax/tyrax-backend/internal/migrate"
 	"github.com/tyrax/tyrax-backend/internal/middleware"
 	"github.com/tyrax/tyrax-backend/internal/repository"
 	"github.com/tyrax/tyrax-backend/internal/service"
@@ -54,6 +55,15 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	migrationsDir := os.Getenv("MIGRATIONS_DIR")
+	if migrationsDir == "" {
+		migrationsDir = "migrations"
+	}
+	if err := migrate.Apply(ctx, db, migrationsDir); err != nil {
+		logger.Error("MIGRATION FAILED", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	// ── Repositories ─────────────────────────────────────────────────────────
 	nodeRepo   := repository.NewNodeRepository(db)
