@@ -21,13 +21,16 @@ function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
 async function api(path, opts = {}) {
   const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
-  if (token()) headers.Authorization = "Bearer " + token();
+  const tok = opts.skipAuth ? null : token();
+  if (tok) headers.Authorization = "Bearer " + tok;
   const res = await fetch(API + path, { ...opts, headers });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) {
-    clearToken();
-    showLogin();
-    throw new Error("SESSION EXPIRED");
+    if (!opts.skipAuth) {
+      clearToken();
+      showLogin();
+    }
+    throw new Error(data.message || "ACCESS DENIED");
   }
   if (!res.ok) throw new Error(data.message || "REQUEST FAILED");
   return data;
@@ -51,6 +54,7 @@ loginForm.addEventListener("submit", async (e) => {
   try {
     const res = await api("/auth/login", {
       method: "POST",
+      skipAuth: true,
       body: JSON.stringify({
         username: $("#login-user").value.trim(),
         password: $("#login-pass").value,
@@ -254,8 +258,11 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-if (token()) showMain();
-else showLogin();
+if (token()) {
+  showMain();
+} else {
+  showLogin();
+}
 
 setInterval(() => {
   if (!token() || mainScreen.classList.contains("hidden")) return;
