@@ -81,12 +81,17 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.Username != h.cfg.AdminUsername {
+	if strings.TrimSpace(req.Username) != strings.TrimSpace(h.cfg.AdminUsername) {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status": "error", "message": "ACCESS DENIED",
 		})
 	}
 	if !h.verifyAdminPassword(req.Password) {
+		slog.Warn("admin: login denied",
+			slog.String("username", req.Username),
+			slog.Bool("plain_configured", h.cfg.AdminPassword != ""),
+			slog.Bool("hash_configured", h.cfg.AdminPasswordHash != ""),
+		)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status": "error", "message": "ACCESS DENIED",
 		})
@@ -130,11 +135,12 @@ func (h *AdminHandler) adminAuthEnabled() bool {
 }
 
 func (h *AdminHandler) verifyAdminPassword(password string) bool {
-	if h.cfg.AdminPasswordHash != "" {
-		return bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(password)) == nil
-	}
+	// Plain ADMIN_PASSWORD wins when set — avoids broken bcrypt hashes in Docker .env.
 	if h.cfg.AdminPassword != "" {
 		return subtle.ConstantTimeCompare([]byte(password), []byte(h.cfg.AdminPassword)) == 1
+	}
+	if h.cfg.AdminPasswordHash != "" {
+		return bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(password)) == nil
 	}
 	return false
 }
