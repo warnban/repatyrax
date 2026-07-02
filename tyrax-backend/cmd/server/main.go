@@ -148,6 +148,7 @@ func main() {
 
 	// Admin panel API — separate JWT, login/password from env.
 	admin := api.Group("/admin")
+	admin.Get("/auth/diag", adminH.AuthDiag)
 	admin.Post("/auth/login", middleware.AuthRateLimiter(), adminH.Login)
 	adminProtected := admin.Group("/", middleware.AdminJWTAuth(cfg.AdminJWTSecret), middleware.UserRateLimiter())
 	adminProtected.Get("/stats", adminH.Stats)

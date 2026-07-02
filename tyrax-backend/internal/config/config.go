@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -54,10 +55,10 @@ func Load() *Config {
 
 		CryptoPayToken: getEnv("CRYPTO_PAY_TOKEN", ""),
 
-		AdminUsername:         getEnv("ADMIN_USERNAME", ""),
-		AdminPassword:         getEnv("ADMIN_PASSWORD", ""),
+		AdminUsername:         getAdminEnv("ADMIN_USERNAME"),
+		AdminPassword:         getAdminEnv("ADMIN_PASSWORD"),
 		AdminPasswordHash:     loadAdminPasswordHash(),
-		AdminJWTSecret:        getEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
+		AdminJWTSecret:        getAdminEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
 		TelegramSupportToken:  getEnv("TELEGRAM_SUPPORT_BOT_TOKEN", ""),
 		TelegramSupportBotURL: getEnv("TELEGRAM_SUPPORT_BOT_URL", "https://t.me/tyrax_support_bot"),
 	}
@@ -68,6 +69,27 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// getAdminEnv reads admin credentials and strips whitespace/quotes/CRLF that
+// often sneak in when .env is edited on Windows or pasted with quotes.
+func getAdminEnv(key string, fallback ...string) string {
+	raw := os.Getenv(key)
+	if raw == "" && len(fallback) > 0 {
+		return cleanEnvValue(fallback[0])
+	}
+	return cleanEnvValue(raw)
+}
+
+func cleanEnvValue(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.TrimPrefix(v, "\ufeff")
+	if len(v) >= 2 {
+		if (v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'') {
+			return v[1 : len(v)-1]
+		}
+	}
+	return v
 }
 
 func getEnvInt(key string, fallback int) int {
@@ -83,10 +105,10 @@ func getEnvInt(key string, fallback int) int {
 // base64-decodes ADMIN_PASSWORD_HASH_B64. The B64 form avoids Docker Compose eating
 // $ characters in .env values.
 func loadAdminPasswordHash() string {
-	if h := os.Getenv("ADMIN_PASSWORD_HASH"); h != "" {
+	if h := cleanEnvValue(os.Getenv("ADMIN_PASSWORD_HASH")); h != "" {
 		return h
 	}
-	b64 := os.Getenv("ADMIN_PASSWORD_HASH_B64")
+	b64 := cleanEnvValue(os.Getenv("ADMIN_PASSWORD_HASH_B64"))
 	if b64 == "" {
 		return ""
 	}

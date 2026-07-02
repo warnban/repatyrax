@@ -81,16 +81,23 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	if strings.TrimSpace(req.Username) != strings.TrimSpace(h.cfg.AdminUsername) {
+	if strings.TrimSpace(req.Username) != h.cfg.AdminUsername {
+		slog.Warn("admin: login username mismatch",
+			slog.String("got", req.Username),
+			slog.Int("got_bytes", len(req.Username)),
+			slog.Int("want_bytes", len(h.cfg.AdminUsername)),
+		)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status": "error", "message": "ACCESS DENIED",
 		})
 	}
 	if !h.verifyAdminPassword(req.Password) {
-		slog.Warn("admin: login denied",
+		slog.Warn("admin: login password mismatch",
 			slog.String("username", req.Username),
 			slog.Bool("plain_configured", h.cfg.AdminPassword != ""),
+			slog.Int("plain_bytes", len(h.cfg.AdminPassword)),
 			slog.Bool("hash_configured", h.cfg.AdminPasswordHash != ""),
+			slog.Int("got_bytes", len(strings.TrimSpace(req.Password))),
 		)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status": "error", "message": "ACCESS DENIED",
@@ -135,14 +142,40 @@ func (h *AdminHandler) adminAuthEnabled() bool {
 }
 
 func (h *AdminHandler) verifyAdminPassword(password string) bool {
-	// Plain ADMIN_PASSWORD wins when set — avoids broken bcrypt hashes in Docker .env.
+	pass := strings.TrimSpace(password)
 	if h.cfg.AdminPassword != "" {
-		return subtle.ConstantTimeCompare([]byte(password), []byte(h.cfg.AdminPassword)) == 1
+		return subtle.ConstantTimeCompare([]byte(pass), []byte(h.cfg.AdminPassword)) == 1
 	}
 	if h.cfg.AdminPasswordHash != "" {
-		return bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(password)) == nil
+		return bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminPasswordHash), []byte(pass)) == nil
 	}
 	return false
+}
+
+// AuthDiag — GET /api/v1/admin/auth/diag (localhost only, no secrets exposed)
+func (h *AdminHandler) AuthDiag(c *fiber.Ctx) error {
+	ip := c.IP()
+	if ip != "127.0.0.1" && ip != "::1" {
+		return c.SendStatus(fiber.StatusNotFound)
+	}
+	mode := "none"
+	switch {
+	case h.cfg.AdminPassword != "":
+		mode = "plain"
+	case h.cfg.AdminPasswordHash != "":
+		mode = "bcrypt"
+	}
+	return c.JSON(fiber.Map{
+		"status": "ok",
+		"data": fiber.Map{
+			"enabled":        h.adminAuthEnabled(),
+			"mode":           mode,
+			"username":       h.cfg.AdminUsername,
+			"username_bytes": len(h.cfg.AdminUsername),
+			"plain_bytes":    len(h.cfg.AdminPassword),
+			"hash_bytes":     len(h.cfg.AdminPasswordHash),
+		},
+	})
 }
 
 // Stats — GET /api/v1/admin/stats
