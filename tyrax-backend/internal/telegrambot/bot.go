@@ -56,9 +56,7 @@ const (
 // button equals the caption verbatim, so these constants are the routing keys.
 const (
 	btnAccount = "📊 МОЙ АККАУНТ"
-	btnAndroid = "📱 Android"
-	btnIOS     = "🍎 iPhone/iPad"
-	btnPC      = "💻 Windows/Mac"
+	btnConnect = "🔌 ПОДКЛЮЧИТЬ ДЕВАЙС"
 	btnDevices = "🛠 Мои устройства"
 	btnBuy     = "💳 Купить / продлить"
 	btnHelp    = "🆘 Помощь"
@@ -72,9 +70,9 @@ const (
 		"ИДЕНТИФИКАЦИЯ ПОДТВЕРЖДЕНА.\n" +
 		"Открой приложение TYRAX — ты уже внутри системы."
 
-	msgStartNoToken = "▓▓▓ TYRAX ▓▓▓\nБЕЗ РАЗРЕШЕНИЯ.\n\n" +
-		"Используй приложение TYRAX для входа,\n" +
-		"или введи /help если что-то не работает."
+	msgStartNoToken = "▓▓▓ TYRAX ▓▓▓\n\n" +
+		"Нажми 🔌 ПОДКЛЮЧИТЬ ДЕВАЙС — выбери платформу и получи доступ.\n\n" +
+		"Вход из приложения: /help если что-то не работает."
 
 	msgLinkInvalid    = "❌ Ссылка недействительна или устарела."
 	msgNoAccount      = "❌ Аккаунт не найден. Войди через приложение TYRAX."
@@ -86,22 +84,30 @@ const (
 	msgPaymentErr     = "⚠️ Ошибка создания платежа. Попробуй позже."
 
 	msgAndroid = "▓ ANDROID ▓\n\n" +
-		"Скачай приложение TYRAX (release APK)\n" +
-		"Войди через Telegram или email\n" +
-		"Нажми ENTER — готово"
+		"1. Скачай APK (кнопка ниже)\n" +
+		"2. Установи и войди через Telegram или email\n" +
+		"3. Нажми ENTER — готово"
 
-	msgIOS = "▓ iPHONE / iPAD ▓\n\n" +
-		"1. Установи Happ — кнопка App Store ниже\n" +
-		"2. Нажми «Добавить подписку» — URL TYRAX\n" +
-		"3. В Happ: обнови подписку → CONNECT\n\n" +
-		"Протокол: VLESS + Reality + XHTTP\n" +
-		"Лимит FREE и дата подписки — в строке статуса Happ"
+	msgIOS = "▓ iPHONE / iPAD + HAPP ▓\n\n" +
+		"1. Установи Happ — App Store ниже\n" +
+		"2. Скопируй ключ подписки — кнопка «СКОПИРОВАТЬ КЛЮЧ»\n" +
+		"3. Happ → + → Import from URL → вставь ключ\n" +
+		"4. Обнови подписку → CONNECT\n\n" +
+		"Протокол: VLESS + Reality + XHTTP"
 
-	msgPC = "▓ WINDOWS / MAC ▓\n\n" +
-		"Windows: нативный клиент TYRAX (кнопка ниже)\n\n" +
-		"Mac: установи Happ (DMG или App Store)\n" +
-		"Затем «Подписка TYRAX для Mac»\n\n" +
-		"VLESS + Reality + XHTTP · WireGuard не используем"
+	msgWindows = "▓ WINDOWS ▓\n\n" +
+		"1. Скачай установщик (кнопка ниже)\n" +
+		"2. Установи TYRAX от администратора\n" +
+		"3. Войди через Telegram или email → ENTER"
+
+	msgMac = "▓ macOS + HAPP ▓\n\n" +
+		"1. Установи Happ — DMG или App Store ниже\n" +
+		"2. Скопируй ключ подписки — кнопка «СКОПИРОВАТЬ КЛЮЧ»\n" +
+		"3. Happ → + → Import from URL → вставь ключ\n" +
+		"4. Обнови подписку → CONNECT\n\n" +
+		"Протокол: VLESS + Reality + XHTTP"
+
+	msgConnectPick = "▓ ПОДКЛЮЧЕНИЕ ▓\n\nВыбери платформу:"
 
 	msgHelp = "▓ ПОМОЩЬ ▓\n\n" +
 		"Не подключается? Тормозит?\n" +
@@ -186,12 +192,8 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 	switch strings.TrimSpace(msg.Text) {
 	case btnAccount:
 		b.handleAccount(msg)
-	case btnAndroid:
-		b.handleAndroid(msg.Chat.ID)
-	case btnIOS:
-		b.sendHappSubscription(msg.Chat.ID, msg.From.ID, msgIOS, "ios")
-	case btnPC:
-		b.handlePC(msg.Chat.ID, msg.From.ID)
+	case btnConnect:
+		b.handleConnect(msg.Chat.ID)
 	case btnDevices:
 		b.handleDevices(msg)
 	case btnBuy:
@@ -296,32 +298,30 @@ func (b *Bot) handleAccount(msg *tgbotapi.Message) {
 	b.sendText(msg.Chat.ID, text)
 }
 
+func (b *Bot) handleConnect(chatID int64) {
+	slog.Info("telegram bot", slog.String("action", "connect_pick"), slog.Int64("chat_id", chatID))
+	m := tgbotapi.NewMessage(chatID, msgConnectPick)
+	m.ReplyMarkup = devicePickerKeyboard()
+	b.send(m)
+}
+
 func (b *Bot) handleAndroid(chatID int64) {
 	slog.Info("telegram bot", slog.String("action", "android"), slog.Int64("telegram_id", chatID))
-	m := tgbotapi.NewMessage(chatID, msgAndroid)
+	m := tgbotapi.NewMessage(chatID, msgAndroid+"\n\n📖 "+b.websiteURL()+"/guides.html#android")
 	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Скачать APK", b.androidDownloadURL()),
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ СКАЧАТЬ APK", b.androidDownloadURL()),
 		),
 	)
 	b.send(m)
 }
 
-func (b *Bot) handlePC(chatID int64, telegramID int64) {
-	slog.Info("telegram bot", slog.String("action", "pc"), slog.Int64("telegram_id", chatID))
-	m := tgbotapi.NewMessage(chatID, msgPC+"\n\n📖 "+b.websiteURL()+"/guides.html#mac")
+func (b *Bot) handleWindows(chatID int64) {
+	slog.Info("telegram bot", slog.String("action", "windows"), slog.Int64("telegram_id", chatID))
+	m := tgbotapi.NewMessage(chatID, msgWindows+"\n\n📖 "+b.websiteURL()+"/guides.html#windows")
 	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("⬇️ TYRAX для Windows", b.windowsDownloadURL()),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Happ для Mac (DMG)", happMacDMG),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonURL("⬇️ Happ — App Store", happIOSAppStoreGlobal),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("📡 Подписка TYRAX для Mac", "tyrax_happ:mac"),
+			tgbotapi.NewInlineKeyboardButtonURL("⬇️ СКАЧАТЬ ДЛЯ WINDOWS", b.windowsDownloadURL()),
 		),
 	)
 	b.send(m)
@@ -343,17 +343,17 @@ func (b *Bot) websiteURL() string {
 	return base
 }
 
-func (b *Bot) sendHappSubscription(chatID int64, telegramID int64, intro, platform string) {
+func (b *Bot) sendHappSubscription(chatID int64, from *tgbotapi.User, intro, platform string) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
 	defer cancel()
 
-	user, err := b.userRepo.FindByTelegramID(ctx, telegramID)
+	user, err := b.ensureUser(ctx, from)
 	if errors.Is(err, repository.ErrUserNotFound) {
 		b.sendText(chatID, msgNoAccount)
 		return
 	}
 	if err != nil {
-		b.fail(chatID, "happ_find_user", telegramID, "", err)
+		b.fail(chatID, "happ_find_user", from.ID, "", err)
 		return
 	}
 
@@ -363,22 +363,49 @@ func (b *Bot) sendHappSubscription(chatID int64, telegramID int64, intro, platfo
 		return
 	}
 	if err != nil {
-		b.fail(chatID, "happ_sub_url", telegramID, user.ID, err)
+		b.fail(chatID, "happ_sub_url", from.ID, user.ID, err)
 		return
 	}
 
-	slog.Info("telegram bot", slog.String("action", "happ_sub"), slog.String("platform", platform), slog.Int64("telegram_id", telegramID), slog.String("user_id", user.ID))
+	slog.Info("telegram bot", slog.String("action", "happ_sub"), slog.String("platform", platform), slog.Int64("telegram_id", from.ID), slog.String("user_id", user.ID))
 
 	guidesHash := "ios"
 	if platform == "mac" {
 		guidesHash = "mac"
 	}
 	text := intro + "\n\n📖 " + b.websiteURL() + "/guides.html#" + guidesHash +
-		"\n\n▓ ПОДПИСКА ▓\n" + subURL +
-		"\n\nHapp → + → Import from URL → вставь ссылку выше\n(не открывай в браузере — скачается файл)"
+		"\n\n▓ КЛЮЧ ПОДПИСКИ ▓\n" + subURL +
+		"\n\nHapp → + → Import from URL → вставь ключ\n(не открывай ссылку в браузере)"
 	m := tgbotapi.NewMessage(chatID, text)
 	m.ReplyMarkup = b.happSubscriptionKeyboard(subURL, platform)
 	b.send(m)
+}
+
+func (b *Bot) sendHappSubscriptionCopy(chatID int64, from *tgbotapi.User) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.ensureUser(ctx, from)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			b.sendText(chatID, msgNoAccount)
+			return
+		}
+		b.fail(chatID, "happ_copy_user", from.ID, "", err)
+		return
+	}
+
+	subURL, err := b.happSub.EnsureSubscriptionURL(ctx, user.ID)
+	if errors.Is(err, service.ErrDeviceLimitReached) {
+		b.sendText(chatID, msgDeviceLimit)
+		return
+	}
+	if err != nil {
+		b.fail(chatID, "happ_copy_url", from.ID, user.ID, err)
+		return
+	}
+
+	b.sendText(chatID, "▓ КЛЮЧ ПОДПИСКИ ▓\n\n"+subURL+"\n\nДолгое нажатие на текст → Копировать")
 }
 
 func (b *Bot) happSubscriptionKeyboard(subURL, platform string) tgbotapi.InlineKeyboardMarkup {
@@ -402,7 +429,7 @@ func (b *Bot) happSubscriptionKeyboard(subURL, platform string) tgbotapi.InlineK
 	}
 
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonURL("📡 ДОБАВИТЬ В HAPP", "happ://add/"+subURL),
+		tgbotapi.NewInlineKeyboardButtonData("📋 СКОПИРОВАТЬ КЛЮЧ", "tyrax_copy_sub"),
 	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonURL("💳 КУПИТЬ / ПРОДЛИТЬ", b.cfg.TelegramBotURL),
@@ -411,8 +438,7 @@ func (b *Bot) happSubscriptionKeyboard(subURL, platform string) tgbotapi.InlineK
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-// handlePlatformWG sends the WireGuard onboarding copy plus a "получить конфиг"
-// button for the given platform ("ios" or "pc").
+// handlePlatformWG sends legacy WireGuard onboarding copy (unused in VLESS flow).
 func (b *Bot) handlePlatformWG(chatID int64, text, platform string) {
 	slog.Info("telegram bot", slog.String("action", "platform_"+platform), slog.Int64("telegram_id", chatID))
 	m := tgbotapi.NewMessage(chatID, text)
@@ -485,8 +511,10 @@ func (b *Bot) handleCallback(cq *tgbotapi.CallbackQuery) {
 	switch {
 	case data == "tyrax_back_tier":
 		b.editTierSelection(cq)
-	case strings.HasPrefix(data, "tyrax_happ:"):
-		b.handleHappCallback(cq)
+	case data == "tyrax_copy_sub":
+		b.handleCopySubCallback(cq)
+	case strings.HasPrefix(data, "tyrax_dev:"):
+		b.handleDeviceCallback(cq, strings.TrimPrefix(data, "tyrax_dev:"))
 	case strings.HasPrefix(data, "tyrax_del:"):
 		b.handleDeleteCallback(cq, strings.TrimPrefix(data, "tyrax_del:"))
 	case strings.HasPrefix(data, "tyrax_tier:"):
@@ -500,13 +528,26 @@ func (b *Bot) handleCallback(cq *tgbotapi.CallbackQuery) {
 	}
 }
 
-func (b *Bot) handleHappCallback(cq *tgbotapi.CallbackQuery) {
+func (b *Bot) handleDeviceCallback(cq *tgbotapi.CallbackQuery, platform string) {
 	b.answerCallback(cq.ID, "")
-	intro := msgIOS
-	if strings.HasSuffix(cq.Data, ":mac") {
-		intro = "▓ MAC + HAPP ▓\n\nVLESS + Reality + XHTTP\nЛимит и подписка — в статусной строке Happ"
+	chatID := cq.Message.Chat.ID
+	switch platform {
+	case "android":
+		b.handleAndroid(chatID)
+	case "iphone":
+		b.sendHappSubscription(chatID, cq.From, msgIOS, "ios")
+	case "windows":
+		b.handleWindows(chatID)
+	case "mac":
+		b.sendHappSubscription(chatID, cq.From, msgMac, "mac")
+	default:
+		b.sendText(chatID, msgUseMenu)
 	}
-	b.sendHappSubscription(cq.Message.Chat.ID, cq.From.ID, intro, "mac")
+}
+
+func (b *Bot) handleCopySubCallback(cq *tgbotapi.CallbackQuery) {
+	b.answerCallback(cq.ID, "Ключ отправлен отдельным сообщением")
+	b.sendHappSubscriptionCopy(cq.Message.Chat.ID, cq.From)
 }
 
 func (b *Bot) handleDeleteCallback(cq *tgbotapi.CallbackQuery, deviceID string) {
@@ -634,12 +675,25 @@ func (b *Bot) handlePayCallback(cq *tgbotapi.CallbackQuery, rest string) {
 func mainMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	kb := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnAccount)),
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnAndroid), tgbotapi.NewKeyboardButton(btnIOS)),
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnPC), tgbotapi.NewKeyboardButton(btnDevices)),
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnBuy), tgbotapi.NewKeyboardButton(btnHelp)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnConnect)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnDevices), tgbotapi.NewKeyboardButton(btnBuy)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(btnHelp)),
 	)
 	kb.ResizeKeyboard = true
 	return kb
+}
+
+func devicePickerKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📱 Android", "tyrax_dev:android"),
+			tgbotapi.NewInlineKeyboardButtonData("🍎 iPhone", "tyrax_dev:iphone"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💻 Windows", "tyrax_dev:windows"),
+			tgbotapi.NewInlineKeyboardButtonData("🖥 macOS", "tyrax_dev:mac"),
+		),
+	)
 }
 
 func tierKeyboard() tgbotapi.InlineKeyboardMarkup {
@@ -693,6 +747,12 @@ var methodMap = map[string]string{
 }
 
 // ── Persistence helpers ──────────────────────────────────────────────────────
+
+// ensureUser returns the Telegram identity, provisioning a FREE account on first bot contact.
+func (b *Bot) ensureUser(ctx context.Context, from *tgbotapi.User) (*model.User, error) {
+	user, _, err := b.resolveUser(ctx, from.ID, from.UserName)
+	return user, err
+}
 
 // resolveUser returns the identity for a Telegram account, provisioning a
 // FREE-tier one on first contact.
