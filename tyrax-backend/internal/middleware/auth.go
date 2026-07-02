@@ -16,6 +16,12 @@ type TyraxClaims struct {
 
 func JWTAuth(secret string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Admin panel uses its own JWT on /api/v1/admin/*. The user JWT mount
+		// on /api/v1/ (Fiber Group("/", middleware)) matches that prefix too.
+		if strings.HasPrefix(c.Path(), "/api/v1/admin") {
+			return c.Next()
+		}
+
 		authHeader := c.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			return fiber.NewError(fiber.StatusUnauthorized, "ACCESS DENIED")

@@ -146,7 +146,12 @@ func main() {
 	auth.Post("/telegram-callback", authH.TelegramCallback)
 	auth.Get("/telegram-status",    authH.TelegramStatus)
 
+	// Admin public auth — register BEFORE user JWT middleware mount on /api/v1/.
+	api.Get("/admin/auth/diag", adminH.AuthDiag)
+	api.Post("/admin/auth/login", middleware.AuthRateLimiter(), adminH.Login)
+
 	// Protected routes — JWT first (sets user_id), then 100 req/min per user.
+	// NOTE: Group("/", middleware) mounts USE middleware on all /api/v1/* paths.
 	protected := api.Group("/", middleware.JWTAuth(cfg.JWTSecret), middleware.UserRateLimiter())
 
 	// Profile
@@ -162,11 +167,7 @@ func main() {
 	protected.Post("/vpn/connect",           vpnH.Connect)
 	protected.Post("/vpn/disconnect",        vpnH.LogDisconnect)
 
-	// Admin panel — public auth endpoints (must NOT sit under admin JWT group).
-	api.Get("/admin/auth/diag", adminH.AuthDiag)
-	api.Post("/admin/auth/login", middleware.AuthRateLimiter(), adminH.Login)
-
-	// Admin panel — JWT-protected API.
+	// Admin panel — JWT-protected API (user JWT skipped for /admin — see middleware/auth.go).
 	adminProtected := api.Group("/admin", middleware.AdminJWTAuth(cfg.AdminJWTSecret), middleware.UserRateLimiter())
 	adminProtected.Get("/stats", adminH.Stats)
 	adminProtected.Get("/users", adminH.ListUsers)
