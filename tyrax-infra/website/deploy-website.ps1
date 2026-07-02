@@ -5,11 +5,11 @@
 
 .EXAMPLE
     pwsh -File tyrax-infra\website\deploy-website.ps1
-    pwsh -File tyrax-infra\website\deploy-website.ps1 -Host 147.45.108.102 -User root
+    pwsh -File tyrax-infra\website\deploy-website.ps1 -ServerHost 147.45.245.80 -User root
 #>
 [CmdletBinding()]
 param(
-    [string]$ServerHost = "147.45.108.102",
+    [string]$ServerHost = "147.45.245.80",
     [string]$User = "root",
     [string]$RemotePath = "/var/www/tyrax.tech",
     [int]$Port = 22

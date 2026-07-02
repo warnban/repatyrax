@@ -374,7 +374,8 @@ func (b *Bot) sendHappSubscription(chatID int64, telegramID int64, intro, platfo
 		guidesHash = "mac"
 	}
 	text := intro + "\n\n📖 " + b.websiteURL() + "/guides.html#" + guidesHash +
-		"\n\n▓ ПОДПИСКА ▓\n" + subURL + "\n\nHapp → + → Import from URL"
+		"\n\n▓ ПОДПИСКА ▓\n" + subURL +
+		"\n\nHapp → + → Import from URL → вставь ссылку выше\n(не открывай в браузере — скачается файл)"
 	m := tgbotapi.NewMessage(chatID, text)
 	m.ReplyMarkup = b.happSubscriptionKeyboard(subURL, platform)
 	b.send(m)
@@ -401,7 +402,7 @@ func (b *Bot) happSubscriptionKeyboard(subURL, platform string) tgbotapi.InlineK
 	}
 
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonURL("📡 ДОБАВИТЬ ПОДПИСКУ", subURL),
+		tgbotapi.NewInlineKeyboardButtonURL("📡 ДОБАВИТЬ В HAPP", "happ://add/"+subURL),
 	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonURL("💳 КУПИТЬ / ПРОДЛИТЬ", b.cfg.TelegramBotURL),

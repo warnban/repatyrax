@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -102,7 +101,6 @@ func (s *happSubscriptionService) RenderFeed(ctx context.Context, token string) 
 	userInfo, tierLabel := s.buildUserInfo(ctx, user)
 	headers := map[string]string{
 		"Content-Type":            "text/plain; charset=utf-8",
-		"Content-Disposition":     `attachment; filename="tyrax.txt"`,
 		"Profile-Update-Interval": "3600",
 		"Subscription-Userinfo":   userInfo,
 		"Support-Url":             s.botURL,
@@ -111,9 +109,7 @@ func (s *happSubscriptionService) RenderFeed(ctx context.Context, token string) 
 
 	if blocked {
 		headers["Announce"] = "ЛИМИТ ИСЧЕРПАН. Продлить или купить тариф: " + s.botURL
-		body := base64.StdEncoding.EncodeToString([]byte(
-			"#subscription-userinfo: " + userInfo + "\n",
-		))
+		body := "#subscription-userinfo: " + userInfo + "\n"
 		return &HappSubscriptionFeed{Status: 200, Body: []byte(body), Headers: headers}, nil
 	}
 
@@ -149,10 +145,9 @@ func (s *happSubscriptionService) RenderFeed(ctx context.Context, token string) 
 	}
 
 	payload := strings.Join(lines, "\n")
-	encoded := base64.StdEncoding.EncodeToString([]byte(payload))
 	return &HappSubscriptionFeed{
 		Status:  200,
-		Body:    []byte(encoded),
+		Body:    []byte(payload),
 		Headers: headers,
 	}, nil
 }
@@ -201,14 +196,12 @@ func (s *happSubscriptionService) buildUserInfo(ctx context.Context, user *model
 }
 
 func (s *happSubscriptionService) blockedFeed(message string) *HappSubscriptionFeed {
-	body := base64.StdEncoding.EncodeToString([]byte("# " + message + "\n"))
 	return &HappSubscriptionFeed{
 		Status: 200,
-		Body:   []byte(body),
+		Body:   []byte("# " + message + "\n"),
 		Headers: map[string]string{
-			"Content-Type":        "text/plain; charset=utf-8",
-			"Content-Disposition": `attachment; filename="tyrax.txt"`,
-			"Announce":            message,
+			"Content-Type": "text/plain; charset=utf-8",
+			"Announce":     message,
 		},
 	}
 }

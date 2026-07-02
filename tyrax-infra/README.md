@@ -67,8 +67,8 @@ ssh root@5.129.195.144
 cd /opt/tyrax && git pull
 cd tyrax-backend && docker compose up -d --build
 
-# Website (tyrax.tech — 147.45.108.102)
-ssh root@147.45.108.102
+# Website (tyrax.tech — 147.45.245.80)
+ssh root@147.45.245.80
 cd /opt/tyrax && git pull
 # nginx root → /opt/tyrax/tyrax-website (or rsync to /var/www/tyrax.tech)
 ```

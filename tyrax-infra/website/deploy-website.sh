@@ -2,11 +2,11 @@
 #
 # Deploy tyrax-website static files to the tyrax.tech VPS.
 #
-#   WEBSITE_HOST=147.45.108.102 WEBSITE_USER=root bash deploy-website.sh
+#   WEBSITE_HOST=147.45.245.80 WEBSITE_USER=root bash deploy-website.sh
 #
 set -euo pipefail
 
-WEBSITE_HOST="${WEBSITE_HOST:-147.45.108.102}"
+WEBSITE_HOST="${WEBSITE_HOST:-147.45.245.80}"
 WEBSITE_USER="${WEBSITE_USER:-root}"
 REMOTE_PATH="${REMOTE_PATH:-/var/www/tyrax.tech}"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
