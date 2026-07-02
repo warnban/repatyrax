@@ -162,11 +162,12 @@ func main() {
 	protected.Post("/vpn/connect",           vpnH.Connect)
 	protected.Post("/vpn/disconnect",        vpnH.LogDisconnect)
 
-	// Admin panel API — separate JWT, login/password from env.
-	admin := api.Group("/admin")
-	admin.Get("/auth/diag", adminH.AuthDiag)
-	admin.Post("/auth/login", middleware.AuthRateLimiter(), adminH.Login)
-	adminProtected := admin.Group("/", middleware.AdminJWTAuth(cfg.AdminJWTSecret), middleware.UserRateLimiter())
+	// Admin panel — public auth endpoints (must NOT sit under admin JWT group).
+	api.Get("/admin/auth/diag", adminH.AuthDiag)
+	api.Post("/admin/auth/login", middleware.AuthRateLimiter(), adminH.Login)
+
+	// Admin panel — JWT-protected API.
+	adminProtected := api.Group("/admin", middleware.AdminJWTAuth(cfg.AdminJWTSecret), middleware.UserRateLimiter())
 	adminProtected.Get("/stats", adminH.Stats)
 	adminProtected.Get("/users", adminH.ListUsers)
 	adminProtected.Get("/users/:id", adminH.GetUser)
@@ -176,6 +177,18 @@ func main() {
 	adminProtected.Get("/support/tickets/:id", adminH.GetTicket)
 	adminProtected.Post("/support/tickets/:id/reply", adminH.ReplyTicket)
 	adminProtected.Post("/support/tickets/:id/close", adminH.CloseTicket)
+
+	// Payments
+	protected.Post("/payment/create",            paymentH.CreatePayment)
+	protected.Get("/payment/status/:orderID",    paymentH.GetPaymentStatus)
+	protected.Get("/subscription",               paymentH.GetSubscription)
+
+	// Subscription invites
+	protected.Get("/subscription/invites",        paymentH.GetInvites)
+	protected.Post("/subscription/invite",        paymentH.SendInvite)
+	protected.Delete("/subscription/invite/:accountID", paymentH.RemoveInvite)
+	protected.Post("/subscription/invite/accept", paymentH.AcceptInvite)
+	protected.Post("/subscription/invite/leave",  paymentH.LeaveInvite)
 
 	// Admin SPA — served on admin.* host or /admin path.
 	app.Use(func(c *fiber.Ctx) error {
@@ -194,18 +207,6 @@ func main() {
 		}
 		return c.Next()
 	})
-
-	// Payments
-	protected.Post("/payment/create",            paymentH.CreatePayment)
-	protected.Get("/payment/status/:orderID",    paymentH.GetPaymentStatus)
-	protected.Get("/subscription",               paymentH.GetSubscription)
-
-	// Subscription invites
-	protected.Get("/subscription/invites",        paymentH.GetInvites)
-	protected.Post("/subscription/invite",        paymentH.SendInvite)
-	protected.Delete("/subscription/invite/:accountID", paymentH.RemoveInvite)
-	protected.Post("/subscription/invite/accept", paymentH.AcceptInvite)
-	protected.Post("/subscription/invite/leave",  paymentH.LeaveInvite)
 
 	port := os.Getenv("PORT")
 	if port == "" {

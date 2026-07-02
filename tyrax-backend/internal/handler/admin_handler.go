@@ -175,7 +175,7 @@ func (h *AdminHandler) AuthDiag(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status": "ok",
 		"data": fiber.Map{
-			"build":          "admin-auth-v3",
+			"build":          "admin-auth-v4",
 			"enabled":        h.adminAuthEnabled(),
 			"mode":           mode,
 			"username":       h.cfg.AdminUsername,
