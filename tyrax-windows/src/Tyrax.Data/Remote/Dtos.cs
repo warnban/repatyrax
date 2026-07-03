@@ -16,6 +16,12 @@ public sealed record VerifyRequest(
     [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("code")] string Code);
 
+public sealed class ResendDataDto
+{
+    [JsonPropertyName("message")] public string? Message { get; set; }
+    [JsonPropertyName("email_sent")] public bool EmailSent { get; set; }
+}
+
 public sealed record ResendRequest(
     [property: JsonPropertyName("email")] string Email);
 
@@ -26,6 +32,7 @@ public sealed class AuthDataDto
     [JsonPropertyName("email")] public string? Email { get; set; }
     [JsonPropertyName("email_verified")] public bool EmailVerified { get; set; }
     [JsonPropertyName("verification_required")] public bool VerificationRequired { get; set; }
+    [JsonPropertyName("email_sent")] public bool EmailSent { get; set; } = true;
 }
 
 public sealed class TelegramInitDataDto

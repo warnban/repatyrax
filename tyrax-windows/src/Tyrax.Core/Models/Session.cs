@@ -12,6 +12,9 @@ public sealed record AuthResult
     /// <see cref="Token"/> is empty in that case — route to the verify screen.
     /// </summary>
     public bool VerificationRequired { get; init; }
+
+    /// <summary>False when SMTP delivery failed after registration/resend.</summary>
+    public bool EmailSent { get; init; } = true;
 }
 
 /// <summary>The signed-in IDENTITY as returned by <c>/auth/profile</c>.</summary>

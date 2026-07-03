@@ -15,7 +15,7 @@ public interface IAuthRepository
     Task<AuthResult> VerifyEmailAsync(string email, string code, CancellationToken ct = default);
 
     /// <summary>Requests a fresh confirmation code. Never throws for unknown emails.</summary>
-    Task ResendVerificationAsync(string email, CancellationToken ct = default);
+    Task<bool> ResendVerificationAsync(string email, CancellationToken ct = default);
 
     /// <summary>Starts the Telegram deep-link flow; returns the bot URL + poll token.</summary>
     Task<TelegramInit> TelegramInitAsync(CancellationToken ct = default);

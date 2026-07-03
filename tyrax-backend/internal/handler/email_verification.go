@@ -18,47 +18,70 @@ import (
 const verifyIssueTimeout = 5 * time.Second
 
 // issueVerification mints a fresh 6-digit code + link token, persists it, and
-// dispatches the confirmation email asynchronously. Persistence errors are
-// returned; SMTP latency/errors never block the caller.
-func (h *AuthHandler) issueVerification(userID, email string) error {
+// sends the confirmation email. When SMTP is configured, a send failure is
+// returned so callers can surface delivery problems to the client.
+func (h *AuthHandler) issueVerification(userID, email string) (emailSent bool, err error) {
 	code, err := randomDigits(6)
 	if err != nil {
-		return err
+		return false, err
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return fmt.Errorf("generate verify token: %w", err)
+		return false, fmt.Errorf("generate verify token: %w", err)
 	}
 	token := hex.EncodeToString(raw)
 
 	ctx, cancel := context.WithTimeout(context.Background(), verifyIssueTimeout)
 	defer cancel()
 	if err := h.userRepo.CreateEmailVerification(ctx, userID, email, code, token, time.Now().Add(emailVerifyTTL)); err != nil {
-		return err
+		return false, err
 	}
 
-	go h.sendVerificationEmail(email, code, token)
-	return nil
+	if err := h.sendVerificationEmail(email, code, token); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
-func (h *AuthHandler) sendVerificationEmail(email, code, token string) {
+func (h *AuthHandler) sendVerificationEmail(email, code, token string) error {
 	if h.mailer == nil || !h.mailer.Enabled() {
-		return
+		slog.Warn("auth: verification email skipped — mailer disabled", slog.String("email", email))
+		return fmt.Errorf("mailer disabled")
 	}
 	link := fmt.Sprintf("%s/api/v1/auth/verify-email?token=%s", strings.TrimRight(h.publicAPIURL, "/"), token)
 	subject := "TYRAX — ПОДТВЕРДИ ДОСТУП"
 	if err := h.mailer.Send(email, subject, verificationText(code, link), verificationHTML(code, link, h.supportEmail)); err != nil {
 		slog.Error("auth: send verification email", slog.String("email", email), slog.String("error", err.Error()))
+		return err
 	}
+	slog.Info("auth: verification email sent", slog.String("email", email))
+	return nil
 }
 
 // VerifyEmailPage — GET /api/v1/auth/verify-email?token=xxx
-// The target of the confirmation link in the email. Renders a branded HTML page
-// and flips the identity to verified on success.
+// Shows a confirmation page. Mail clients (Mail.ru, Gmail) prefetch GET links and
+// would consume the token before the user enters the in-app code — so we only
+// verify on an explicit POST (button click), not on this GET.
 func (h *AuthHandler) VerifyEmailPage(c *fiber.Ctx) error {
 	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
 
 	token := strings.TrimSpace(c.Query("token"))
+	if token == "" {
+		return c.Status(fiber.StatusBadRequest).SendString(verifyResultHTML(false, "ССЫЛКА НЕВЕРНА"))
+	}
+
+	return c.SendString(verifyLandingHTML(token))
+}
+
+// VerifyEmailConfirm — POST /api/v1/auth/verify-email
+// Consumes the link token after the user clicks the button on the landing page.
+func (h *AuthHandler) VerifyEmailConfirm(c *fiber.Ctx) error {
+	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
+
+	token := strings.TrimSpace(c.FormValue("token"))
+	if token == "" {
+		token = strings.TrimSpace(c.Query("token"))
+	}
 	if token == "" {
 		return c.Status(fiber.StatusBadRequest).SendString(verifyResultHTML(false, "ССЫЛКА НЕВЕРНА"))
 	}
@@ -88,7 +111,7 @@ func (h *AuthHandler) VerifyEmailCode(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID REQUEST"})
 	}
 	email := normalizeEmail(req.Email)
-	code := strings.TrimSpace(req.Code)
+	code := normalizeVerificationCode(req.Code)
 	if email == "" || code == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID REQUEST"})
 	}
@@ -99,6 +122,27 @@ func (h *AuthHandler) VerifyEmailCode(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "SYSTEM FAILURE"})
 	}
 	if !found {
+		// Mail scanners often prefetch the email link and burn the code row. If the
+		// identity is already verified (via link or a prior attempt), hand out a session.
+		if user, lookupErr := h.userRepo.FindByEmail(c.Context(), email); lookupErr == nil && user.EmailVerified {
+			token, signErr := h.signToken(user.ID, string(user.SubscriptionTier), user.Email)
+			if signErr != nil {
+				slog.Error("auth: sign token for verified user", slog.String("user_id", user.ID), slog.String("error", signErr.Error()))
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "SYSTEM FAILURE"})
+			}
+			slog.Info("email already confirmed — issued session from code screen", slog.String("user_id", user.ID))
+			return c.JSON(fiber.Map{
+				"status": "ok",
+				"data": fiber.Map{
+					"token":          token,
+					"user_id":        user.ID,
+					"tier":           string(user.SubscriptionTier),
+					"email":          user.Email,
+					"email_verified": true,
+				},
+			})
+		}
+		slog.Warn("auth: invalid verification code", slog.String("email", email))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID OR EXPIRED CODE"})
 	}
 
@@ -138,20 +182,31 @@ func (h *AuthHandler) ResendVerification(c *fiber.Ctx) error {
 	email := normalizeEmail(req.Email)
 
 	if email != "" && h.verifyEmail {
+		emailSent := false
 		user, err := h.userRepo.FindByEmail(c.Context(), email)
 		switch {
 		case err == nil && !user.EmailVerified:
-			if e := h.issueVerification(user.ID, user.Email); e != nil {
-				slog.Error("auth: resend verification", slog.String("user_id", user.ID), slog.String("error", e.Error()))
+			var sendErr error
+			emailSent, sendErr = h.issueVerification(user.ID, user.Email)
+			if sendErr != nil {
+				slog.Error("auth: resend verification", slog.String("user_id", user.ID), slog.String("error", sendErr.Error()))
 			}
 		case err != nil && !isNotFound(err):
 			slog.Error("auth: resend lookup", slog.String("error", err.Error()))
 		}
+
+		return c.JSON(fiber.Map{
+			"status": "ok",
+			"data": fiber.Map{
+				"message":    "IF THE IDENTITY EXISTS, A NEW CODE WAS SENT",
+				"email_sent": emailSent,
+			},
+		})
 	}
 
 	return c.JSON(fiber.Map{
 		"status": "ok",
-		"data":   fiber.Map{"message": "IF THE IDENTITY EXISTS, A NEW CODE WAS SENT"},
+		"data":   fiber.Map{"message": "IF THE IDENTITY EXISTS, A NEW CODE WAS SENT", "email_sent": false},
 	})
 }
 
@@ -162,6 +217,18 @@ func isNotFound(err error) bool {
 // normalizeEmail lower-cases and trims so lookups and uniqueness are consistent.
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// normalizeVerificationCode keeps digits only so pasted codes with spaces/dashes work.
+func normalizeVerificationCode(code string) string {
+	code = strings.TrimSpace(code)
+	var b strings.Builder
+	for _, r := range code {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func randomDigits(n int) (string, error) {
@@ -202,7 +269,7 @@ func verificationHTML(code, link, support string) string {
 		`<div style="font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;color:#FF1E1E;margin-top:8px;">ПОДТВЕРДИ ДОСТУП</div>` +
 		`</td></tr>` +
 		`<tr><td style="padding:0 40px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#cccccc;">` +
-		`Введи код в приложении или открой ссылку ниже. Действует 24 часа.` +
+		`Введи код в приложении TYRAX. Ссылку ниже нажимай только если не используешь код.` +
 		`</td></tr>` +
 		`<tr><td style="padding:0 40px 28px;">` +
 		`<div style="font-family:'Courier New',monospace;font-weight:700;font-size:38px;letter-spacing:10px;color:#ffffff;background:#000000;border:1px solid #FF1E1E;padding:20px;text-align:center;">` + safeCode + `</div>` +
@@ -214,6 +281,23 @@ func verificationHTML(code, link, support string) string {
 		`Если это был не ты — просто игнорируй письмо.<br>Поддержка: ` + safeSupport +
 		`</td></tr>` +
 		`</table></td></tr></table></body></html>`
+}
+
+func verifyLandingHTML(token string) string {
+	safeToken := html.EscapeString(token)
+	return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">` +
+		`<meta name="viewport" content="width=device-width,initial-scale=1"><title>TYRAX</title></head>` +
+		`<body style="margin:0;background:#000;display:flex;min-height:100vh;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif;">` +
+		`<div style="text-align:center;padding:32px;max-width:420px;">` +
+		`<div style="font-weight:900;font-size:34px;letter-spacing:6px;color:#fff;">TYRAX</div>` +
+		`<div style="font-weight:700;font-size:14px;letter-spacing:2px;color:#FF1E1E;margin:24px 0 12px;">ПОДТВЕРДИ ДОСТУП</div>` +
+		`<div style="font-size:14px;line-height:22px;color:#cccccc;margin-bottom:28px;">` +
+		`Код вводи в приложении. Кнопку ниже жми только если подтверждаешь через браузер.` +
+		`</div>` +
+		`<form method="POST" action="/api/v1/auth/verify-email">` +
+		`<input type="hidden" name="token" value="` + safeToken + `">` +
+		`<button type="submit" style="font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;color:#000;background:#FF1E1E;border:none;padding:16px 32px;cursor:pointer;">ПОДТВЕРДИТЬ</button>` +
+		`</form></div></body></html>`
 }
 
 func verifyResultHTML(ok bool, errMsg string) string {

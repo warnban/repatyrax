@@ -83,6 +83,9 @@ func main() {
 	logger.Info("email verification",
 		slog.Bool("enabled", cfg.EmailVerificationEnabled()),
 		slog.String("smtp_host", cfg.SMTPHost),
+		slog.Int("smtp_port", cfg.SMTPPort),
+		slog.String("smtp_username", cfg.SMTPUsername),
+		slog.Bool("smtp_configured", cfg.SMTPPassword != ""),
 	)
 
 	// ── Services ─────────────────────────────────────────────────────────────
@@ -173,6 +176,7 @@ func main() {
 	auth.Post("/register",          authH.Register)
 	auth.Post("/login",             authH.Login)
 	auth.Post("/verify",            authH.VerifyEmailCode)
+	auth.Post("/verify-email",      authH.VerifyEmailConfirm)
 	auth.Post("/resend-verification", authH.ResendVerification)
 	auth.Get("/verify-email",       authH.VerifyEmailPage)
 	auth.Get("/telegram-init",      authH.TelegramInit)

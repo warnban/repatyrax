@@ -110,12 +110,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	// POST /auth/verify. When SMTP is off, verification is skipped and a session
 	// is issued immediately so dev/local stays usable.
 	if h.verifyEmail {
-		if err := h.issueVerification(user.ID, user.Email); err != nil {
-			slog.Error("auth: issue verification", slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		emailSent, sendErr := h.issueVerification(user.ID, user.Email)
+		if sendErr != nil {
+			slog.Error("auth: issue verification", slog.String("user_id", user.ID), slog.String("error", sendErr.Error()))
 		}
 		slog.Info("identity registered (pending confirmation)",
 			slog.String("user_id", user.ID),
 			slog.String("tier", string(user.SubscriptionTier)),
+			slog.Bool("email_sent", emailSent),
 		)
 		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 			"status": "ok",
@@ -125,6 +127,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 				"email":                 user.Email,
 				"email_verified":        false,
 				"verification_required": true,
+				"email_sent":            emailSent,
 			},
 		})
 	}
@@ -182,15 +185,17 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	// Gate on email confirmation: block the session and resend the code so the
 	// user always has a fresh link waiting.
 	if h.verifyEmail && !user.EmailVerified {
-		if err := h.issueVerification(user.ID, user.Email); err != nil {
-			slog.Error("auth: resend verification on login", slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		emailSent, sendErr := h.issueVerification(user.ID, user.Email)
+		if sendErr != nil {
+			slog.Error("auth: resend verification on login", slog.String("user_id", user.ID), slog.String("error", sendErr.Error()))
 		}
-		slog.Info("login blocked: email not confirmed", slog.String("user_id", user.ID))
+		slog.Info("login blocked: email not confirmed", slog.String("user_id", user.ID), slog.Bool("email_sent", emailSent))
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"status":                "error",
 			"message":               "EMAIL NOT CONFIRMED. CHECK YOUR INBOX.",
 			"email_verified":        false,
 			"verification_required": true,
+			"email_sent":            emailSent,
 		})
 	}
 

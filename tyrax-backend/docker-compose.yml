@@ -38,7 +38,7 @@ services:
       SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@tyrax.tech}
       WEBSITE_URL: ${WEBSITE_URL:-https://tyrax.tech}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://api.tyrax.tech}
-      WINDOWS_APP_VERSION: ${WINDOWS_APP_VERSION:-1.0.14}
+      WINDOWS_APP_VERSION: ${WINDOWS_APP_VERSION:-1.0.15}
       ANDROID_APP_VERSION: ${ANDROID_APP_VERSION:-1.0.2}
       ANDROID_APP_VERSION_CODE: ${ANDROID_APP_VERSION_CODE:-3}
       ANDROID_APP_URL: ${ANDROID_APP_URL:-https://tyrax.tech/download/tyrax.apk}

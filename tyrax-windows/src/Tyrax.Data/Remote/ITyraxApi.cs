@@ -20,7 +20,7 @@ public interface ITyraxApi
     Task<ApiEnvelope<AuthDataDto>> VerifyEmailAsync([Body] VerifyRequest req, CancellationToken ct = default);
 
     [Post("/auth/resend-verification")]
-    Task<ApiEnvelope<object>> ResendVerificationAsync([Body] ResendRequest req, CancellationToken ct = default);
+    Task<ApiEnvelope<ResendDataDto>> ResendVerificationAsync([Body] ResendRequest req, CancellationToken ct = default);
 
     [Get("/auth/telegram-init")]
     Task<ApiEnvelope<TelegramInitDataDto>> TelegramInitAsync(CancellationToken ct = default);

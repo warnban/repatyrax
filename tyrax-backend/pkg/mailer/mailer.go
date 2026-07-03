@@ -138,6 +138,7 @@ func (m *Mailer) buildMessage(to, subject, textBody, htmlBody string) []byte {
 	var b strings.Builder
 	b.WriteString("From: " + m.from + "\r\n")
 	b.WriteString("To: " + to + "\r\n")
+	b.WriteString("Reply-To: " + m.fromAddr + "\r\n")
 	b.WriteString("Subject: " + encodeHeader(subject) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: multipart/alternative; boundary=\"" + boundary + "\"\r\n\r\n")

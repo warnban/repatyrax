@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Refit;
 using Tyrax.Core;
 using Tyrax.Core.Abstractions;
@@ -17,7 +18,13 @@ public sealed class AuthRepository : IAuthRepository
     public async Task<AuthResult> RegisterAsync(string email, string password, CancellationToken ct = default)
     {
         var d = await ApiErrors.UnwrapAsync(() => _api.RegisterAsync(new RegisterRequest(email, password), ct), "REGISTRATION FAILED");
-        return new AuthResult { Token = d.Token, UserId = d.UserId, VerificationRequired = d.VerificationRequired };
+        return new AuthResult
+        {
+            Token = d.Token,
+            UserId = d.UserId,
+            VerificationRequired = d.VerificationRequired,
+            EmailSent = d.EmailSent,
+        };
     }
 
     public async Task<AuthResult> LoginAsync(string email, string password, CancellationToken ct = default)
@@ -34,7 +41,8 @@ public sealed class AuthRepository : IAuthRepository
         catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.Forbidden
                                       && (ex.Content?.Contains("verification_required") ?? false))
         {
-            return new AuthResult { Token = "", UserId = null, VerificationRequired = true };
+            var emailSent = ParseEmailSent(ex.Content);
+            return new AuthResult { Token = "", UserId = null, VerificationRequired = true, EmailSent = emailSent };
         }
         catch (Exception e)
         {
@@ -48,10 +56,19 @@ public sealed class AuthRepository : IAuthRepository
         return new AuthResult { Token = d.Token, UserId = d.UserId };
     }
 
-    public async Task ResendVerificationAsync(string email, CancellationToken ct = default)
+    public async Task<bool> ResendVerificationAsync(string email, CancellationToken ct = default)
     {
-        try { await _api.ResendVerificationAsync(new ResendRequest(email), ct); }
-        catch { /* Silent: the screen shows its own "code re-sent" hint regardless. */ }
+        try
+        {
+            var d = await ApiErrors.UnwrapAsync(
+                () => _api.ResendVerificationAsync(new ResendRequest(email), ct),
+                "RESEND FAILED");
+            return d.EmailSent;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task<TelegramInit> TelegramInitAsync(CancellationToken ct = default)
@@ -85,5 +102,18 @@ public sealed class AuthRepository : IAuthRepository
             Tier = d.Tier,
             TelegramLinked = d.TelegramLinked,
         };
+    }
+
+    private static bool ParseEmailSent(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("email_sent", out var v) && v.ValueKind == JsonValueKind.True)
+                return true;
+        }
+        catch (JsonException) { }
+        return false;
     }
 }

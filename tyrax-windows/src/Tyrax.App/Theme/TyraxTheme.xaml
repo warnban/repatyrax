@@ -114,6 +114,33 @@
         </Setter>
     </Style>
 
+    <!-- Red text link — mode switch (register ↔ login) -->
+    <Style x:Key="TyraxLinkButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource TyraxFont}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource TyraxRed}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="4,6" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      TextElement.Foreground="{TemplateBinding Foreground}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource TyraxWhite}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="TyraxBackButton" TargetType="Button" BasedOn="{StaticResource TyraxGhostButton}">
         <Setter Property="FontSize" Value="13" />
         <Setter Property="HorizontalAlignment" Value="Right" />

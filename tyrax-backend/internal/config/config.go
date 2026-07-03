@@ -67,7 +67,7 @@ func Load() *Config {
 		SupportEmail:        getEnv("SUPPORT_EMAIL", "support@tyrax.tech"),
 		WebsiteURL:          getEnv("WEBSITE_URL", "https://tyrax.tech"),
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", "https://api.tyrax.tech"),
-		WindowsAppVersion:   getEnv("WINDOWS_APP_VERSION", "1.0.14"),
+		WindowsAppVersion:   getEnv("WINDOWS_APP_VERSION", "1.0.15"),
 		Port:                getEnv("PORT", "8080"),
 
 		AndroidAppVersion:      getEnv("ANDROID_APP_VERSION", "1.0.1"),
@@ -91,9 +91,9 @@ func Load() *Config {
 
 		SMTPHost:     getEnv("SMTP_HOST", "smtp.timeweb.ru"),
 		SMTPPort:     getEnvInt("SMTP_PORT", 465),
-		SMTPUsername: getEnv("SMTP_USERNAME", "support@tyrax.tech"),
-		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
-		SMTPFrom:     getEnv("SMTP_FROM", "TYRAX <support@tyrax.tech>"),
+		SMTPUsername: cleanEnvValue(getEnv("SMTP_USERNAME", "support@tyrax.tech")),
+		SMTPPassword: cleanEnvValue(getEnv("SMTP_PASSWORD", "")),
+		SMTPFrom:     cleanEnvValue(getEnv("SMTP_FROM", "TYRAX <support@tyrax.tech>")),
 	}
 }
 
