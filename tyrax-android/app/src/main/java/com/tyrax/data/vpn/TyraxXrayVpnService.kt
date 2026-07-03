@@ -115,9 +115,11 @@ class TyraxXrayVpnService : VpnService() {
             )
             runCatching { File(logDir, "xray_config.json").writeText(patchedConfig) }
 
-            // 1. Xray first — no TUN yet, node dial cannot loop. The second arg is the
-            // asset dir Xray reads geoip.dat/geosite.dat from (enables geoip:ru routing).
-            Libv2ray.initCoreEnv(filesDir.absolutePath, GeoAssets.ensure(this))
+            // 1. Xray first — no TUN yet, node dial cannot loop.
+            // initCoreEnv(envPath, xudpKey): envPath MUST be the directory holding
+            // geoip.dat/geosite.dat (xray.location.asset). The second arg is an optional
+            // XUDP base key — NOT the asset path. Passing the geo dir as "key" caused SIGABRT.
+            Libv2ray.initCoreEnv(GeoAssets.ensure(this), "")
             val controller = Libv2ray.newCoreController(CoreCallback())
             coreController = controller
             Log.d(TAG, "startLoop() before TUN, configLen=${patchedConfig.length}")
