@@ -14,9 +14,24 @@ data class LoginRequest(
     val password: String,
 )
 
+/** Body for POST /auth/verify — confirms the 6-digit code emailed on registration. */
+data class VerifyRequest(
+    val email: String,
+    val code: String,
+)
+
+/** Body for POST /auth/resend-verification — requests a fresh confirmation code. */
+data class ResendRequest(
+    val email: String,
+)
+
 data class AuthDataDto(
-    val token: String,
+    // Absent on the register-pending response (verification_required = true).
+    val token: String? = null,
     @SerializedName("user_id") val userId: String? = null,
+    val email: String? = null,
+    @SerializedName("email_verified") val emailVerified: Boolean = false,
+    @SerializedName("verification_required") val verificationRequired: Boolean = false,
 )
 
 data class TelegramInitDataDto(

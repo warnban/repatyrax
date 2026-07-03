@@ -26,6 +26,7 @@ sealed class AuthUiState {
 
 sealed class AuthUiEvent {
     object NavigateToMain : AuthUiEvent()
+    data class NavigateToVerify(val email: String) : AuthUiEvent()
     data class OpenUrl(val url: String) : AuthUiEvent()
 }
 
@@ -55,7 +56,15 @@ class AuthViewModel @Inject constructor(
                     _events.send(AuthUiEvent.NavigateToMain)
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(error.message ?: "INVALID CREDENTIALS")
+                    val message = error.message ?: "INVALID CREDENTIALS"
+                    // An unconfirmed identity is routed to the verify screen (the
+                    // backend has already re-sent a fresh code) instead of a dead end.
+                    if (message.contains("NOT CONFIRMED", ignoreCase = true)) {
+                        _uiState.value = AuthUiState.Idle
+                        _events.send(AuthUiEvent.NavigateToVerify(email))
+                    } else {
+                        _uiState.value = AuthUiState.Error(message)
+                    }
                 }
         }
     }
@@ -66,13 +75,46 @@ class AuthViewModel @Inject constructor(
             _uiState.value = AuthUiState.Loading
             registerUseCase(email, password)
                 .onSuccess { authData ->
+                    // Hard gate: no session until the email is confirmed.
+                    if (authData.verificationRequired) {
+                        _uiState.value = AuthUiState.Idle
+                        _events.send(AuthUiEvent.NavigateToVerify(email))
+                    } else {
+                        authRepository.saveToken(authData.token)
+                        _uiState.value = AuthUiState.Success(authData.token)
+                        _events.send(AuthUiEvent.NavigateToMain)
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.value = AuthUiState.Error(error.message ?: "REGISTRATION FAILED")
+                }
+        }
+    }
+
+    /** Confirms the 6-digit code and, on success, opens a session. */
+    fun verify(email: String, code: String) {
+        if (email.isBlank() || code.isBlank()) {
+            _uiState.value = AuthUiState.Error("INVALID CODE")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+            authRepository.verifyEmail(email, code)
+                .onSuccess { authData ->
                     authRepository.saveToken(authData.token)
                     _uiState.value = AuthUiState.Success(authData.token)
                     _events.send(AuthUiEvent.NavigateToMain)
                 }
                 .onFailure { error ->
-                    _uiState.value = AuthUiState.Error(error.message ?: "REGISTRATION FAILED")
+                    _uiState.value = AuthUiState.Error(error.message ?: "INVALID OR EXPIRED CODE")
                 }
+        }
+    }
+
+    /** Requests a fresh confirmation code. Silent — the screen shows its own hint. */
+    fun resend(email: String) {
+        viewModelScope.launch {
+            authRepository.resendVerification(email)
         }
     }
 

@@ -11,6 +11,12 @@ public interface IAuthRepository
     Task<AuthResult> RegisterAsync(string email, string password, CancellationToken ct = default);
     Task<AuthResult> LoginAsync(string email, string password, CancellationToken ct = default);
 
+    /// <summary>Confirms the 6-digit code emailed on registration; returns a session.</summary>
+    Task<AuthResult> VerifyEmailAsync(string email, string code, CancellationToken ct = default);
+
+    /// <summary>Requests a fresh confirmation code. Never throws for unknown emails.</summary>
+    Task ResendVerificationAsync(string email, CancellationToken ct = default);
+
     /// <summary>Starts the Telegram deep-link flow; returns the bot URL + poll token.</summary>
     Task<TelegramInit> TelegramInitAsync(CancellationToken ct = default);
 

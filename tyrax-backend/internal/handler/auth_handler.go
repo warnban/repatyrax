@@ -17,6 +17,7 @@ import (
 	"github.com/tyrax/tyrax-backend/internal/middleware"
 	"github.com/tyrax/tyrax-backend/internal/model"
 	"github.com/tyrax/tyrax-backend/internal/repository"
+	"github.com/tyrax/tyrax-backend/pkg/mailer"
 )
 
 const (
@@ -26,21 +27,44 @@ const (
 	tokenTTL = 30 * 24 * time.Hour
 	// telegramTokenTTL bounds the Telegram deep-link auth token to 10 minutes.
 	telegramTokenTTL = 10 * time.Minute
+	// emailVerifyTTL bounds an email confirmation code/link to 24 hours.
+	emailVerifyTTL = 24 * time.Hour
 )
 
-// AuthHandler owns identity issuance: registration, login, and the Telegram
-// deep-link flow. It signs every session token with the process JWT secret.
+// AuthHandler owns identity issuance: registration, login, email confirmation
+// and the Telegram deep-link flow. It signs every session token with the process
+// JWT secret.
 type AuthHandler struct {
-	userRepo    repository.UserRepository
-	jwtSecret   string
-	botUsername string
+	userRepo     repository.UserRepository
+	jwtSecret    string
+	botUsername  string
+	mailer       *mailer.Mailer
+	verifyEmail  bool
+	publicAPIURL string
+	websiteURL   string
+	supportEmail string
 }
 
-func NewAuthHandler(userRepo repository.UserRepository, jwtSecret, botUsername string) *AuthHandler {
+// AuthDeps bundles the email-confirmation dependencies so the constructor stays
+// readable as the surface grows.
+type AuthDeps struct {
+	Mailer       *mailer.Mailer
+	VerifyEmail  bool
+	PublicAPIURL string
+	WebsiteURL   string
+	SupportEmail string
+}
+
+func NewAuthHandler(userRepo repository.UserRepository, jwtSecret, botUsername string, deps AuthDeps) *AuthHandler {
 	return &AuthHandler{
-		userRepo:    userRepo,
-		jwtSecret:   jwtSecret,
-		botUsername: botUsername,
+		userRepo:     userRepo,
+		jwtSecret:    jwtSecret,
+		botUsername:  botUsername,
+		mailer:       deps.Mailer,
+		verifyEmail:  deps.VerifyEmail,
+		publicAPIURL: deps.PublicAPIURL,
+		websiteURL:   deps.WebsiteURL,
+		supportEmail: deps.SupportEmail,
 	}
 }
 
@@ -53,7 +77,11 @@ type credentials struct {
 // Creates a FREE-tier identity and returns a signed session token.
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var req credentials
-	if err := c.BodyParser(&req); err != nil || req.Email == "" || req.Password == "" {
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID CREDENTIALS"})
+	}
+	req.Email = normalizeEmail(req.Email)
+	if req.Email == "" || req.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID CREDENTIALS"})
 	}
 
@@ -72,6 +100,36 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "SYSTEM FAILURE"})
 	}
 
+	if ip := clientIP(c); ip != "" {
+		_ = h.userRepo.SetRegistrationIP(c.Context(), user.ID, ip)
+	}
+
+	// Hard gate: when SMTP is configured the identity is NOT handed a session
+	// until it confirms the email. This blocks throwaway-account abuse (free
+	// tunnel farming). The client must route to the "enter code" screen and call
+	// POST /auth/verify. When SMTP is off, verification is skipped and a session
+	// is issued immediately so dev/local stays usable.
+	if h.verifyEmail {
+		if err := h.issueVerification(user.ID, user.Email); err != nil {
+			slog.Error("auth: issue verification", slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		}
+		slog.Info("identity registered (pending confirmation)",
+			slog.String("user_id", user.ID),
+			slog.String("tier", string(user.SubscriptionTier)),
+		)
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"status": "ok",
+			"data": fiber.Map{
+				"user_id":               user.ID,
+				"tier":                  string(user.SubscriptionTier),
+				"email":                 user.Email,
+				"email_verified":        false,
+				"verification_required": true,
+			},
+		})
+	}
+
+	_ = h.userRepo.MarkEmailVerified(c.Context(), user.ID)
 	token, err := h.signToken(user.ID, string(user.SubscriptionTier), user.Email)
 	if err != nil {
 		slog.Error("auth: sign token", slog.String("user_id", user.ID), slog.String("error", err.Error()))
@@ -81,17 +139,16 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	slog.Info("identity registered",
 		slog.String("user_id", user.ID),
 		slog.String("tier", string(user.SubscriptionTier)),
+		slog.Bool("email_verified", true),
 	)
-	if ip := clientIP(c); ip != "" {
-		_ = h.userRepo.SetRegistrationIP(c.Context(), user.ID, ip)
-	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"status": "ok",
 		"data": fiber.Map{
-			"token":   token,
-			"user_id": user.ID,
-			"tier":    string(user.SubscriptionTier),
-			"email":   user.Email,
+			"token":          token,
+			"user_id":        user.ID,
+			"tier":           string(user.SubscriptionTier),
+			"email":          user.Email,
+			"email_verified": true,
 		},
 	})
 }
@@ -100,7 +157,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 // Verifies credentials and returns a signed session token.
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req credentials
-	if err := c.BodyParser(&req); err != nil || req.Email == "" || req.Password == "" {
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID CREDENTIALS"})
+	}
+	req.Email = normalizeEmail(req.Email)
+	if req.Email == "" || req.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": "error", "message": "INVALID CREDENTIALS"})
 	}
 
@@ -116,6 +177,21 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"status": "error", "message": "INVALID CREDENTIALS"})
+	}
+
+	// Gate on email confirmation: block the session and resend the code so the
+	// user always has a fresh link waiting.
+	if h.verifyEmail && !user.EmailVerified {
+		if err := h.issueVerification(user.ID, user.Email); err != nil {
+			slog.Error("auth: resend verification on login", slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		}
+		slog.Info("login blocked: email not confirmed", slog.String("user_id", user.ID))
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":                "error",
+			"message":               "EMAIL NOT CONFIRMED. CHECK YOUR INBOX.",
+			"email_verified":        false,
+			"verification_required": true,
+		})
 	}
 
 	token, err := h.signToken(user.ID, string(user.SubscriptionTier), user.Email)

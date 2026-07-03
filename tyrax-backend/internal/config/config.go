@@ -33,6 +33,20 @@ type Config struct {
 	AdminJWTSecret        string
 	TelegramSupportToken  string
 	TelegramSupportBotURL string
+
+	// SMTP (transactional email — registration confirmation). Timeweb corp mail.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+}
+
+// EmailVerificationEnabled reports whether email confirmation is active. It is
+// gated on an SMTP password being present so dev/local (no credentials) skips
+// verification and email registrations remain immediately usable.
+func (c *Config) EmailVerificationEnabled() bool {
+	return c.SMTPPassword != ""
 }
 
 func Load() *Config {
@@ -61,6 +75,12 @@ func Load() *Config {
 		AdminJWTSecret:        getAdminEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
 		TelegramSupportToken:  getEnv("TELEGRAM_SUPPORT_BOT_TOKEN", ""),
 		TelegramSupportBotURL: getEnv("TELEGRAM_SUPPORT_BOT_URL", "https://t.me/tyrax_support_bot"),
+
+		SMTPHost:     getEnv("SMTP_HOST", "smtp.timeweb.ru"),
+		SMTPPort:     getEnvInt("SMTP_PORT", 465),
+		SMTPUsername: getEnv("SMTP_USERNAME", "support@tyrax.tech"),
+		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
+		SMTPFrom:     getEnv("SMTP_FROM", "TYRAX <support@tyrax.tech>"),
 	}
 }
 

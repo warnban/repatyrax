@@ -33,6 +33,7 @@ import com.tyrax.presentation.theme.TyraxTypography
 fun LoginScreen(
     onNavigateToMain: () -> Unit,
     onNavigateToRegister: () -> Unit,
+    onNavigateToVerify: (String) -> Unit,
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -42,6 +43,7 @@ fun LoginScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is AuthUiEvent.NavigateToMain -> onNavigateToMain()
+                is AuthUiEvent.NavigateToVerify -> onNavigateToVerify(event.email)
                 is AuthUiEvent.OpenUrl -> {
                     runCatching {
                         context.startActivity(

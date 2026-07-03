@@ -18,7 +18,7 @@ import (
 const userQueryTimeout = 5 * time.Second
 
 // userColumns is the full column set scanned into model.User, in scan order.
-const userColumns = "id, email, password_hash, telegram_id, username, registration_ip, last_seen_at, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token"
+const userColumns = "id, email, password_hash, telegram_id, username, registration_ip, last_seen_at, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token, email_verified"
 
 var (
 	ErrUserNotFound = errors.New("IDENTITY NOT FOUND")
@@ -153,8 +153,8 @@ func (r *userRepository) CreateFromTelegram(ctx context.Context, telegramID int6
 	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
 	defer cancel()
 
-	query := "INSERT INTO users (telegram_id, username, subscription_tier) " +
-		"VALUES ($1, $2, 'FREE') RETURNING " + userColumns
+	query := "INSERT INTO users (telegram_id, username, subscription_tier, email_verified) " +
+		"VALUES ($1, $2, 'FREE', TRUE) RETURNING " + userColumns
 	u, err := scanUser(r.db.QueryRow(ctx, query, telegramID, username))
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -224,6 +224,97 @@ func (r *userRepository) ConsumeConfirmedTelegramToken(ctx context.Context, toke
 		return "", false, fmt.Errorf("consume telegram token: %w", err)
 	}
 	return userID, true, nil
+}
+
+// CreateEmailVerification persists a pending confirmation (both a 6-digit code
+// for in-app entry and an opaque token for the email link) for an unverified
+// identity. Multiple rows may coexist for one user after resends; the newest
+// unused, unexpired one wins.
+func (r *userRepository) CreateEmailVerification(ctx context.Context, userID, email, code, token string, expiresAt time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		`INSERT INTO email_verifications (user_id, email, code, token, expires_at)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		userID, email, code, token, expiresAt)
+	if err != nil {
+		return fmt.Errorf("create email verification: %w", err)
+	}
+	return nil
+}
+
+// ConfirmEmailByToken consumes a link token, marks it used and flips the user's
+// email_verified flag in one transaction. found is false (nil error) when the
+// token is unknown, expired or already used.
+func (r *userRepository) ConfirmEmailByToken(ctx context.Context, token string) (string, bool, error) {
+	return r.confirmEmail(ctx,
+		`UPDATE email_verifications
+		    SET used_at = NOW()
+		  WHERE token = $1
+		    AND used_at IS NULL
+		    AND expires_at > NOW()
+		RETURNING user_id`,
+		token)
+}
+
+// ConfirmEmailByCode is the in-app counterpart: it matches the newest unused,
+// unexpired code for the given email.
+func (r *userRepository) ConfirmEmailByCode(ctx context.Context, email, code string) (string, bool, error) {
+	return r.confirmEmail(ctx,
+		`UPDATE email_verifications
+		    SET used_at = NOW()
+		  WHERE id = (
+		      SELECT id FROM email_verifications
+		       WHERE email = $1 AND code = $2 AND used_at IS NULL AND expires_at > NOW()
+		       ORDER BY created_at DESC
+		       LIMIT 1
+		  )
+		RETURNING user_id`,
+		email, code)
+}
+
+func (r *userRepository) confirmEmail(ctx context.Context, updateSQL string, args ...any) (string, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return "", false, fmt.Errorf("begin confirm email: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var userID string
+	if err := tx.QueryRow(ctx, updateSQL, args...).Scan(&userID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("consume email verification: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		"UPDATE users SET email_verified = TRUE WHERE id = $1", userID); err != nil {
+		return "", false, fmt.Errorf("mark email verified: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", false, fmt.Errorf("commit confirm email: %w", err)
+	}
+	return userID, true, nil
+}
+
+// MarkEmailVerified flips the flag directly — used when SMTP is not configured
+// (verification disabled) so email registrations remain usable in dev.
+func (r *userRepository) MarkEmailVerified(ctx context.Context, userID string) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE users SET email_verified = TRUE WHERE id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("mark email verified: %w", err)
+	}
+	return nil
 }
 
 func (r *userRepository) FindBySubscriptionToken(ctx context.Context, token string) (*model.User, error) {
@@ -346,6 +437,7 @@ func scanUser(row rowScanner) (*model.User, error) {
 		&u.TrafficPeriodStart,
 		&u.BlockedUntil,
 		&u.SubscriptionToken,
+		&u.EmailVerified,
 	); err != nil {
 		return nil, err
 	}

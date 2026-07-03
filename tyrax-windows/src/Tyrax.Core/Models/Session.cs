@@ -5,6 +5,13 @@ public sealed record AuthResult
 {
     public required string Token { get; init; }
     public string? UserId { get; init; }
+
+    /// <summary>
+    /// True when the backend requires email confirmation before issuing a session
+    /// (register response, or a login attempt by an unconfirmed identity). The
+    /// <see cref="Token"/> is empty in that case — route to the verify screen.
+    /// </summary>
+    public bool VerificationRequired { get; init; }
 }
 
 /// <summary>The signed-in IDENTITY as returned by <c>/auth/profile</c>.</summary>

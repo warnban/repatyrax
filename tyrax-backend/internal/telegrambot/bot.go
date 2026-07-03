@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -70,9 +71,18 @@ const (
 		"ИДЕНТИФИКАЦИЯ ПОДТВЕРЖДЕНА.\n" +
 		"Открой приложение TYRAX — ты уже внутри системы."
 
-	msgStartNoToken = "▓▓▓ TYRAX ▓▓▓\n\n" +
-		"Нажми 🔌 ПОДКЛЮЧИТЬ ДЕВАЙС — выбери платформу и получи доступ.\n\n" +
-		"Вход из приложения: /help если что-то не работает."
+	// msgWelcomeNew greets a Telegram account on first contact — the FREE identity
+	// has just been provisioned, so we frame the value and push straight to connect.
+	msgWelcomeNew = "▓▓▓ TYRAX ▓▓▓\n" +
+		"ДОСТУП ОТКРЫТ.\n\n" +
+		"3 ГБ/мес активны. Без срока. Без логов.\n" +
+		"Оплата: карта РФ · СБП · крипта.\n\n" +
+		"🔌 ПОДКЛЮЧИТЬ ДЕВАЙС — 2 минуты до туннеля."
+
+	// msgWelcomeBack greets a returning identity.
+	msgWelcomeBack = "▓▓▓ TYRAX ▓▓▓\n" +
+		"СИСТЕМА УЗНАЛА ТЕБЯ.\n\n" +
+		"Выбери действие ниже."
 
 	msgLinkInvalid    = "❌ Ссылка недействительна или устарела."
 	msgNoAccount      = "❌ Аккаунт не найден. Войди через приложение TYRAX."
@@ -108,13 +118,6 @@ const (
 		"Протокол: VLESS + Reality + XHTTP"
 
 	msgConnectPick = "▓ ПОДКЛЮЧЕНИЕ ▓\n\nВыбери платформу:"
-
-	msgHelp = "▓ ПОМОЩЬ ▓\n\n" +
-		"Не подключается? Тормозит?\n" +
-		"Вопрос по оплате?\n\n" +
-		"Напиши нам — ответим:\n" +
-		"👉 @tyrax_support\n\n" +
-		"DOMINION — приоритетная поддержка 24/7."
 )
 
 // Bot bundles the long-lived dependencies the update loop needs.
@@ -144,6 +147,17 @@ func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paym
 		return
 	}
 	slog.Info("telegram bot: online", slog.String("username", api.Self.UserName))
+
+	// Register command hints so Telegram shows the "Menu" button and /-autocomplete.
+	if _, err := api.Request(tgbotapi.NewSetMyCommands(
+		tgbotapi.BotCommand{Command: "menu", Description: "Главное меню"},
+		tgbotapi.BotCommand{Command: "account", Description: "Мой аккаунт"},
+		tgbotapi.BotCommand{Command: "connect", Description: "Подключить устройство"},
+		tgbotapi.BotCommand{Command: "buy", Description: "Купить / продлить"},
+		tgbotapi.BotCommand{Command: "help", Description: "Помощь"},
+	)); err != nil {
+		slog.Warn("telegram bot: set commands failed", slog.String("error", err.Error()))
+	}
 
 	b := &Bot{
 		api:        api,
@@ -181,6 +195,12 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 			b.handleStart(msg)
 		case "menu":
 			b.sendMainMenu(msg.Chat.ID, msgUseMenu)
+		case "account":
+			b.handleAccount(msg)
+		case "connect":
+			b.handleConnect(msg.Chat.ID)
+		case "buy":
+			b.handleBuyStart(msg.Chat.ID)
 		case "help":
 			b.sendSupportLink(msg.Chat.ID)
 		default:
@@ -211,8 +231,23 @@ func (b *Bot) handleMessage(msg *tgbotapi.Message) {
 func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	token := strings.TrimSpace(msg.CommandArguments())
 	if token == "" {
-		slog.Info("telegram bot", slog.String("action", "start_no_token"), slog.Int64("telegram_id", msg.From.ID))
-		b.sendMainMenu(msg.Chat.ID, msgStartNoToken)
+		// Plain /start (bot opened directly, not via app deep link). Provision the
+		// FREE identity now so every menu item (account, devices, buy) works instead
+		// of dead-ending on "account not found".
+		ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+		defer cancel()
+
+		_, created, err := b.resolveUser(ctx, msg.From.ID, msg.From.UserName)
+		if err != nil {
+			b.fail(msg.Chat.ID, "start_no_token_provision", msg.From.ID, "", err)
+			return
+		}
+		slog.Info("telegram bot", slog.String("action", "start_no_token"), slog.Int64("telegram_id", msg.From.ID), slog.Bool("created", created))
+		if created {
+			b.sendMainMenu(msg.Chat.ID, msgWelcomeNew)
+		} else {
+			b.sendMainMenu(msg.Chat.ID, msgWelcomeBack)
+		}
 		return
 	}
 
@@ -278,24 +313,43 @@ func (b *Bot) handleAccount(msg *tgbotapi.Message) {
 
 	slog.Info("telegram bot", slog.String("action", "account"), slog.Int64("telegram_id", msg.From.ID), slog.String("user_id", user.ID))
 
-	limit := service.DeviceLimit(user.SubscriptionTier)
-	traffic := "∞"
+	// EffectiveTier downgrades an expired paid identity back to FREE so the card
+	// never advertises benefits the user no longer has.
+	tier := service.EffectiveTier(user)
+	limit := service.DeviceLimit(tier)
+
+	traffic := "∞ БЕЗЛИМИТ"
 	validUntil := "АКТИВЕН"
-	if user.SubscriptionTier == model.TierFree {
-		traffic = "3 ГБ / мес"
+	upsell := ""
+	if tier == model.TierFree {
+		usedGB := float64(user.TrafficUsedBytes) / (1024 * 1024 * 1024)
+		traffic = fmt.Sprintf("%.2f / 3.00 ГБ", usedGB)
+		validUntil = "БЕЗ СРОКА"
+		upsell = "\n\n▓ Нужен безлимит и до 10 устройств?\nЖми 💳 Купить / продлить."
 	} else if user.SubscriptionEnd != nil {
 		validUntil = user.SubscriptionEnd.Format("02.01.2006")
 	}
 
 	text := fmt.Sprintf(
-		"◈ TYRAX ID: #00%s\n"+
+		"◈ TYRAX ID: #%s\n"+
 			"◈ СТАТУС: %s\n"+
 			"◈ УСТРОЙСТВ: %d/%d\n"+
 			"◈ ТРАФИК: %s\n"+
-			"◈ ДЕЙСТВУЕТ ДО: %s",
-		user.ID, user.SubscriptionTier, count, limit, traffic, validUntil,
+			"◈ ДЕЙСТВУЕТ ДО: %s%s",
+		shortTyraxID(user.ID), tier, count, limit, traffic, validUntil, upsell,
 	)
 	b.sendText(msg.Chat.ID, text)
+}
+
+// shortTyraxID renders a stable, human-readable identifier from the user UUID:
+// the first 6 hex characters, uppercased (e.g. "A1B2C3"). The raw UUID is never
+// shown to the user.
+func shortTyraxID(id string) string {
+	hexOnly := strings.ToUpper(strings.ReplaceAll(id, "-", ""))
+	if len(hexOnly) >= 6 {
+		return hexOnly[:6]
+	}
+	return hexOnly
 }
 
 func (b *Bot) handleConnect(chatID int64) {
@@ -374,11 +428,15 @@ func (b *Bot) sendHappSubscription(chatID int64, from *tgbotapi.User, intro, pla
 		guidesHash = "mac"
 	}
 	text := intro + "\n\n📖 " + b.websiteURL() + "/guides.html#" + guidesHash +
-		"\n\n▓ КЛЮЧ ПОДПИСКИ ▓\n" + subURL +
-		"\n\nHapp → + → Import from URL → вставь ключ\n(не открывай ссылку в браузере)"
+		"\n\n▓ КЛЮЧ ПОДПИСКИ ▓\n" +
+		"Тапни по ключу ниже — он скопируется.\n" +
+		"Затем в Happ: + → Import from URL (не открывай ссылку в браузере)."
 	m := tgbotapi.NewMessage(chatID, text)
 	m.ReplyMarkup = b.happSubscriptionKeyboard(subURL, platform)
 	b.send(m)
+	// The key itself goes in its own message as a monospace code entity so a
+	// single tap copies it — no manual long-press selection.
+	b.sendCode(chatID, subURL)
 }
 
 func (b *Bot) sendHappSubscriptionCopy(chatID int64, from *tgbotapi.User) {
@@ -405,7 +463,8 @@ func (b *Bot) sendHappSubscriptionCopy(chatID int64, from *tgbotapi.User) {
 		return
 	}
 
-	b.sendText(chatID, "▓ КЛЮЧ ПОДПИСКИ ▓\n\n"+subURL+"\n\nДолгое нажатие на текст → Копировать")
+	b.sendText(chatID, "▓ КЛЮЧ ПОДПИСКИ ▓\nТапни по ключу ниже, чтобы скопировать:")
+	b.sendCode(chatID, subURL)
 }
 
 func (b *Bot) happSubscriptionKeyboard(subURL, platform string) tgbotapi.InlineKeyboardMarkup {
@@ -637,7 +696,7 @@ func (b *Bot) handlePayCallback(cq *tgbotapi.CallbackQuery, rest string) {
 
 	b.answerCallback(cq.ID, "")
 
-	user, err := b.userRepo.FindByTelegramID(ctx, cq.From.ID)
+	user, err := b.ensureUser(ctx, cq.From)
 	if errors.Is(err, repository.ErrUserNotFound) {
 		b.editText(cq, msgNoAccount)
 		return
@@ -827,6 +886,20 @@ func (b *Bot) sendSupportLink(chatID int64) {
 
 func (b *Bot) sendText(chatID int64, text string) {
 	b.send(tgbotapi.NewMessage(chatID, text))
+}
+
+// sendCode sends text rendered as a monospace `code` entity so tapping it copies
+// the whole string in one gesture. We attach the entity manually (offset/length
+// in UTF-16 code units, per the Bot API) instead of MarkdownV2 to avoid escaping
+// the '_', '/', '.' and other characters that appear in subscription URLs.
+func (b *Bot) sendCode(chatID int64, text string) {
+	m := tgbotapi.NewMessage(chatID, text)
+	m.Entities = []tgbotapi.MessageEntity{{
+		Type:   "code",
+		Offset: 0,
+		Length: len(utf16.Encode([]rune(text))),
+	}}
+	b.send(m)
 }
 
 func (b *Bot) sendMainMenu(chatID int64, text string) {

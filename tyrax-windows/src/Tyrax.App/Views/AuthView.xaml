@@ -13,36 +13,69 @@
             <TextBlock Text="БЕЗ РАЗРЕШЕНИЯ" Style="{StaticResource TyraxLabel}"
                        HorizontalAlignment="Center" Margin="0,4,0,28" />
 
-            <TextBlock Text="EMAIL" Style="{StaticResource TyraxLabel}" Margin="0,0,0,4" />
-            <TextBox x:Name="EmailBox" Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
-                     Style="{StaticResource TyraxTextBox}" />
+            <!-- Credentials panel — hidden once email confirmation is required. -->
+            <StackPanel Visibility="{Binding VerificationRequired, Converter={StaticResource InverseBoolToVis}}">
+                <TextBlock Text="EMAIL" Style="{StaticResource TyraxLabel}" Margin="0,0,0,4" />
+                <TextBox x:Name="EmailBox" Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource TyraxTextBox}" />
 
-            <TextBlock Text="ПАРОЛЬ" Style="{StaticResource TyraxLabel}" Margin="0,16,0,4" />
-            <PasswordBox x:Name="PasswordBox" PasswordChanged="PasswordBox_OnPasswordChanged"
-                         Background="{StaticResource TyraxPanel}" Foreground="{StaticResource TyraxWhite}"
-                         BorderBrush="{StaticResource TyraxDim}" BorderThickness="1"
-                         FontFamily="{StaticResource TyraxFont}" FontSize="15" Padding="10,8"
-                         CaretBrush="{StaticResource TyraxRed}" />
+                <TextBlock Text="ПАРОЛЬ" Style="{StaticResource TyraxLabel}" Margin="0,16,0,4" />
+                <PasswordBox x:Name="PasswordBox" PasswordChanged="PasswordBox_OnPasswordChanged"
+                             Background="{StaticResource TyraxPanel}" Foreground="{StaticResource TyraxWhite}"
+                             BorderBrush="{StaticResource TyraxDim}" BorderThickness="1"
+                             FontFamily="{StaticResource TyraxFont}" FontSize="15" Padding="10,8"
+                             CaretBrush="{StaticResource TyraxRed}" />
 
+                <Button Content="ВОЙТИ" Style="{StaticResource TyraxButton}"
+                        Command="{Binding LoginCommand}" IsEnabled="{Binding Busy, Converter={StaticResource NotBool}}"
+                        FontSize="18" Margin="0,22,0,0" HorizontalAlignment="Stretch" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                    <Button Content="РЕГИСТРАЦИЯ" Command="{Binding RegisterCommand}"
+                            Style="{StaticResource TyraxGhostButton}" Margin="0,0,20,0" />
+                    <Button Content="TELEGRAM" Command="{Binding TelegramCommand}"
+                            Style="{StaticResource TyraxGhostButton}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding TelegramHint}" Foreground="{StaticResource TyraxWhite}"
+                           FontFamily="{StaticResource TyraxFont}" FontSize="12"
+                           HorizontalAlignment="Center" Margin="0,10,0,0" />
+            </StackPanel>
+
+            <!-- Verify panel — shown after registration / for an unconfirmed login. -->
+            <StackPanel Visibility="{Binding VerificationRequired, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="ПОДТВЕРДИ ДОСТУП" Style="{StaticResource TyraxLabel}"
+                           Foreground="{StaticResource TyraxRed}" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding Email}" Style="{StaticResource TyraxLabel}"
+                           HorizontalAlignment="Center" Margin="0,4,0,20" />
+
+                <TextBlock Text="КОД ИЗ ПИСЬМА" Style="{StaticResource TyraxLabel}" Margin="0,0,0,4" />
+                <TextBox Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource TyraxTextBox}" MaxLength="6"
+                         FontSize="22" />
+
+                <Button Content="ПОДТВЕРДИТЬ" Style="{StaticResource TyraxButton}"
+                        Command="{Binding VerifyCommand}" IsEnabled="{Binding Busy, Converter={StaticResource NotBool}}"
+                        FontSize="18" Margin="0,22,0,0" HorizontalAlignment="Stretch" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                    <Button Content="ОТПРАВИТЬ СНОВА" Command="{Binding ResendCommand}"
+                            Style="{StaticResource TyraxGhostButton}" Margin="0,0,20,0" />
+                    <Button Content="НАЗАД" Command="{Binding BackToLoginCommand}"
+                            Style="{StaticResource TyraxGhostButton}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding Info}" Foreground="{StaticResource TyraxWhite}"
+                           FontFamily="{StaticResource TyraxFont}" FontSize="12"
+                           HorizontalAlignment="Center" Margin="0,10,0,0"
+                           Visibility="{Binding Info, Converter={StaticResource NonEmptyToVis}}" />
+            </StackPanel>
+
+            <!-- Shared error line. -->
             <TextBlock Text="{Binding Error}" Foreground="{StaticResource TyraxRed}"
                        FontFamily="{StaticResource TyraxFont}" FontWeight="Bold"
                        FontSize="12" Margin="0,14,0,0" TextWrapping="Wrap"
                        Visibility="{Binding Error, Converter={StaticResource NonEmptyToVis}}" />
-
-            <Button Content="ВОЙТИ" Style="{StaticResource TyraxButton}"
-                    Command="{Binding LoginCommand}" IsEnabled="{Binding Busy, Converter={StaticResource NotBool}}"
-                    FontSize="18" Margin="0,22,0,0" HorizontalAlignment="Stretch" />
-
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
-                <Button Content="РЕГИСТРАЦИЯ" Command="{Binding RegisterCommand}"
-                        Style="{StaticResource TyraxGhostButton}" Margin="0,0,20,0" />
-                <Button Content="TELEGRAM" Command="{Binding TelegramCommand}"
-                        Style="{StaticResource TyraxGhostButton}" />
-            </StackPanel>
-
-            <TextBlock Text="{Binding TelegramHint}" Foreground="{StaticResource TyraxWhite}"
-                       FontFamily="{StaticResource TyraxFont}" FontSize="12"
-                       HorizontalAlignment="Center" Margin="0,10,0,0" />
         </StackPanel>
     </Grid>
 </UserControl>

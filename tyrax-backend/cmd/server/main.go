@@ -20,6 +20,7 @@ import (
 	"github.com/tyrax/tyrax-backend/internal/telegrambot"
 	"github.com/tyrax/tyrax-backend/pkg/cryptopay"
 	"github.com/tyrax/tyrax-backend/pkg/freekassa"
+	"github.com/tyrax/tyrax-backend/pkg/mailer"
 	"github.com/tyrax/tyrax-backend/pkg/threexui"
 )
 
@@ -78,6 +79,11 @@ func main() {
 	// ── External clients ──────────────────────────────────────────────────────
 	fkClient := freekassa.New(cfg.FreeKassaShopID, cfg.FreeKassaAPIKey, cfg.FreeKassaSecretWord2)
 	cpClient := cryptopay.New(cfg.CryptoPayToken)
+	mailClient := mailer.New(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom)
+	logger.Info("email verification",
+		slog.Bool("enabled", cfg.EmailVerificationEnabled()),
+		slog.String("smtp_host", cfg.SMTPHost),
+	)
 
 	// ── Services ─────────────────────────────────────────────────────────────
 	// Panel syncer registers per-device VLESS UUIDs on each node's 3x-ui inbound
@@ -111,7 +117,13 @@ func main() {
 	supportMessenger := supportbot.Start(cfg, userRepo, supportRepo)
 
 	// ── Handlers ─────────────────────────────────────────────────────────────
-	authH    := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.TelegramBotUsername)
+	authH    := handler.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.TelegramBotUsername, handler.AuthDeps{
+		Mailer:       mailClient,
+		VerifyEmail:  cfg.EmailVerificationEnabled(),
+		PublicAPIURL: cfg.PublicAPIURL,
+		WebsiteURL:   cfg.WebsiteURL,
+		SupportEmail: cfg.SupportEmail,
+	})
 	vpnH     := handler.NewVPNHandler(vpnSvc)
 	paymentH := handler.NewPaymentHandler(paymentSvc, inviteSvc, deviceRepo, userRepo, trafficSvc)
 	subH     := handler.NewSubscriptionHandler(happSubSvc)
@@ -152,6 +164,9 @@ func main() {
 	auth := api.Group("/auth", middleware.AuthRateLimiter())
 	auth.Post("/register",          authH.Register)
 	auth.Post("/login",             authH.Login)
+	auth.Post("/verify",            authH.VerifyEmailCode)
+	auth.Post("/resend-verification", authH.ResendVerification)
+	auth.Get("/verify-email",       authH.VerifyEmailPage)
 	auth.Get("/telegram-init",      authH.TelegramInit)
 	auth.Post("/telegram-callback", authH.TelegramCallback)
 	auth.Get("/telegram-status",    authH.TelegramStatus)

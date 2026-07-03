@@ -12,10 +12,20 @@ public sealed record LoginRequest(
     [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("password")] string Password);
 
+public sealed record VerifyRequest(
+    [property: JsonPropertyName("email")] string Email,
+    [property: JsonPropertyName("code")] string Code);
+
+public sealed record ResendRequest(
+    [property: JsonPropertyName("email")] string Email);
+
 public sealed class AuthDataDto
 {
     [JsonPropertyName("token")] public string Token { get; set; } = "";
     [JsonPropertyName("user_id")] public string? UserId { get; set; }
+    [JsonPropertyName("email")] public string? Email { get; set; }
+    [JsonPropertyName("email_verified")] public bool EmailVerified { get; set; }
+    [JsonPropertyName("verification_required")] public bool VerificationRequired { get; set; }
 }
 
 public sealed class TelegramInitDataDto

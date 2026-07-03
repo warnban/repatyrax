@@ -183,6 +183,15 @@
     <string name="bot_handle">@tyraxvpnbot</string>
     <string name="auth_telegram_hint_prefix">Впервые здесь? Начни в</string>
 
+    <!-- Email verification -->
+    <string name="verify_title">ПОДТВЕРДИ ДОСТУП</string>
+    <string name="verify_subtitle">Код отправлен на\n%1$s</string>
+    <string name="verify_label_code">Код из письма</string>
+    <string name="verify_btn_confirm">ПОДТВЕРДИТЬ</string>
+    <string name="verify_resend">Не пришёл код? ОТПРАВИТЬ СНОВА</string>
+    <string name="verify_resent">КОД ОТПРАВЛЕН ПОВТОРНО</string>
+    <string name="verify_back">ИЗМЕНИТЬ ПОЧТУ</string>
+
     <!-- Errors -->
     <string name="error_node_unavailable">NODE UNAVAILABLE</string>
     <string name="error_access_denied">ACCESS DENIED</string>

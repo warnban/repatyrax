@@ -16,6 +16,12 @@ interface TyraxApiService {
     @POST("auth/login")
     suspend fun login(@Body req: LoginRequest): ApiResponse<AuthDataDto>
 
+    @POST("auth/verify")
+    suspend fun verifyEmail(@Body req: VerifyRequest): ApiResponse<AuthDataDto>
+
+    @POST("auth/resend-verification")
+    suspend fun resendVerification(@Body req: ResendRequest): ApiResponse<Unit>
+
     @GET("auth/telegram-init")
     suspend fun telegramInit(): ApiResponse<TelegramInitDataDto>
 

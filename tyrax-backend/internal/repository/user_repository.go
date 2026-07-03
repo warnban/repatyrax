@@ -25,6 +25,12 @@ type UserRepository interface {
 	CreateTelegramAuthToken(ctx context.Context, token string, expiresAt time.Time) error
 	ConsumeConfirmedTelegramToken(ctx context.Context, token string) (userID string, found bool, err error)
 
+	// Email confirmation flow (email/password registrations).
+	CreateEmailVerification(ctx context.Context, userID, email, code, token string, expiresAt time.Time) error
+	ConfirmEmailByToken(ctx context.Context, token string) (userID string, found bool, err error)
+	ConfirmEmailByCode(ctx context.Context, email, code string) (userID string, found bool, err error)
+	MarkEmailVerified(ctx context.Context, userID string) error
+
 	// Happ / external subscription feed.
 	FindBySubscriptionToken(ctx context.Context, token string) (*model.User, error)
 	EnsureSubscriptionToken(ctx context.Context, userID string) (string, error)

@@ -20,6 +20,12 @@ public sealed partial class AuthViewModel : ObservableObject
     [ObservableProperty] private bool _busy;
     [ObservableProperty] private string _telegramHint = "";
 
+    // Email confirmation gate. When true the view swaps the credentials panel for
+    // the "enter code" panel.
+    [ObservableProperty] private bool _verificationRequired;
+    [ObservableProperty] private string _code = "";
+    [ObservableProperty] private string _info = "";
+
     public AuthViewModel(IAuthRepository auth, IVpnRepository vpn, ISession session)
     {
         _auth = auth;
@@ -34,6 +40,25 @@ public sealed partial class AuthViewModel : ObservableObject
 
     [RelayCommand]
     private Task RegisterAsync() => RunAuthAsync(() => _auth.RegisterAsync(Email.Trim(), Password));
+
+    [RelayCommand]
+    private Task VerifyAsync() => RunAuthAsync(() => _auth.VerifyEmailAsync(Email.Trim(), Code.Trim()));
+
+    [RelayCommand]
+    private async Task ResendAsync()
+    {
+        await _auth.ResendVerificationAsync(Email.Trim());
+        Info = "КОД ОТПРАВЛЕН ПОВТОРНО";
+    }
+
+    [RelayCommand]
+    private void BackToLogin()
+    {
+        VerificationRequired = false;
+        Code = "";
+        Error = "";
+        Info = "";
+    }
 
     [RelayCommand]
     private async Task TelegramAsync()
@@ -80,6 +105,14 @@ public sealed partial class AuthViewModel : ObservableObject
         try
         {
             var result = await op();
+            if (result.VerificationRequired)
+            {
+                // No session yet — reveal the "enter code" panel.
+                Info = "";
+                Code = "";
+                VerificationRequired = true;
+                return;
+            }
             await CompleteAsync(result.Token, result.UserId);
         }
         catch (TyraxException ex)

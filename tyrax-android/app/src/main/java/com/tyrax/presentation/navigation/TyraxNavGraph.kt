@@ -1,5 +1,6 @@
 package com.tyrax.presentation.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -8,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.tyrax.presentation.screens.auth.LoginScreen
 import com.tyrax.presentation.screens.auth.RegisterScreen
+import com.tyrax.presentation.screens.auth.VerifyEmailScreen
 import com.tyrax.presentation.screens.devices.DevicesScreen
 import com.tyrax.presentation.screens.main.MainScreen
 import com.tyrax.presentation.screens.nodes.NodesScreen
@@ -22,6 +24,9 @@ sealed class Screen(val route: String) {
     object Onboarding   : Screen("onboarding")
     object Login        : Screen("login")
     object Register     : Screen("register")
+    object Verify       : Screen("verify/{email}") {
+        fun create(email: String): String = "verify/${Uri.encode(email)}"
+    }
     object Main         : Screen("main")
     object Nodes        : Screen("nodes")
     object Subscription : Screen("subscription")
@@ -73,6 +78,9 @@ fun TyraxNavGraph(navController: NavHostController) {
                 onNavigateToRegister = {
                     navController.navigate(Screen.Register.route)
                 },
+                onNavigateToVerify = { email ->
+                    navController.navigate(Screen.Verify.create(email))
+                },
             )
         }
 
@@ -86,6 +94,25 @@ fun TyraxNavGraph(navController: NavHostController) {
                 onNavigateToLogin = {
                     navController.popBackStack()
                 },
+                onNavigateToVerify = { email ->
+                    navController.navigate(Screen.Verify.create(email))
+                },
+            )
+        }
+
+        composable(
+            route     = Screen.Verify.route,
+            arguments = listOf(navArgument("email") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val email = Uri.decode(backStackEntry.arguments?.getString("email").orEmpty())
+            VerifyEmailScreen(
+                email            = email,
+                onNavigateToMain = {
+                    navController.navigate(Screen.Main.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                },
+                onNavigateBack   = { navController.popBackStack() },
             )
         }
 

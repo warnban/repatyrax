@@ -25,6 +25,11 @@ type User struct {
 	SubscriptionEnd  *time.Time       `db:"subscription_end" json:"subscription_end,omitempty"`
 	CreatedAt        time.Time        `db:"created_at" json:"created_at"`
 
+	// EmailVerified reports whether an email/password identity has confirmed
+	// ownership of its address. Telegram-provisioned identities are always true
+	// (they carry no email); pre-existing rows are grandfathered to true.
+	EmailVerified bool `db:"email_verified" json:"email_verified"`
+
 	// Traffic metering (FREE-tier quota). Paid tiers ignore these.
 	TrafficUsedBytes   int64      `db:"traffic_used_bytes" json:"traffic_used_bytes"`
 	TrafficPeriodStart time.Time  `db:"traffic_period_start" json:"traffic_period_start"`
