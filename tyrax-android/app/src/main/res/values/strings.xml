@@ -156,6 +156,12 @@
     <string name="settings_split_apply_hint">ИЗМЕНЕНИЯ ПРИМЕНЯТСЯ ПРИ СЛЕДУЮЩЕМ ПОДКЛЮЧЕНИИ</string>
     <string name="settings_toggle_on">ВКЛ</string>
     <string name="settings_toggle_off">ВЫКЛ</string>
+    <string name="update_banner_title">ДОСТУПНА НОВАЯ ВЕРСИЯ</string>
+    <string name="update_btn_now">ОБНОВИТЬ</string>
+    <string name="update_btn_later">ПОЗЖЕ</string>
+    <string name="update_downloading">ЗАГРУЗКА…</string>
+    <string name="update_error">ОБНОВЛЕНИЕ НЕ УДАЛОСЬ. ПОВТОРИТЕ.</string>
+    <string name="update_grant_install">РАЗРЕШИТЕ УСТАНОВКУ И НАЖМИТЕ ОБНОВИТЬ СНОВА</string>
     <string name="settings_section_about">О СЕРВИСЕ</string>
     <string name="settings_about_privacy">Политика конфиденциальности</string>
     <string name="settings_about_terms">Пользовательское соглашение</string>

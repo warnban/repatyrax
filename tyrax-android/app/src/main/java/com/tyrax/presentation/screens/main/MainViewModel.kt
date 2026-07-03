@@ -4,10 +4,13 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tyrax.data.local.TokenStore
+import com.tyrax.data.local.UpdatePrefs
 import com.tyrax.data.vpn.TunnelStatsBus
+import com.tyrax.domain.model.UpdateInfo
 import com.tyrax.domain.model.VpnState
 import com.tyrax.domain.repository.VpnRepository
 import com.tyrax.domain.usecase.AddDeviceUseCase
+import com.tyrax.domain.usecase.CheckUpdateUseCase
 import com.tyrax.domain.usecase.ConnectionSupervisor
 import com.tyrax.domain.usecase.GetSubscriptionUseCase
 import com.tyrax.domain.usecase.ResumeConnectionUseCase
@@ -43,6 +46,8 @@ data class MainUiState(
     val deviceLimitReached: Boolean = false,
     // Transient prompt shown when the user taps ENTER while quota-blocked.
     val trafficBlockedPrompt: Boolean = false,
+    // A newer APK the user should install (null = up-to-date / dismissed).
+    val updateInfo: UpdateInfo? = null,
 )
 
 @HiltViewModel
@@ -53,6 +58,8 @@ class MainViewModel @Inject constructor(
     private val addDeviceUseCase: AddDeviceUseCase,
     private val tokenStore: TokenStore,
     private val vpnRepository: VpnRepository,
+    private val checkUpdateUseCase: CheckUpdateUseCase,
+    private val updatePrefs: UpdatePrefs,
 ) : ViewModel() {
 
     // Snapshot of the server-side subscription used to drive the traffic counter
@@ -68,10 +75,12 @@ class MainViewModel @Inject constructor(
     private val _sub = MutableStateFlow(SubInfo())
     private val _deviceLimitReached = MutableStateFlow(false)
     private val _trafficBlockedPrompt = MutableStateFlow(false)
+    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
 
     init {
         refreshSubscription()
         ensureDeviceRegistered()
+        checkForUpdate()
         // Re-read usage whenever the tunnel returns to idle so the counter and
         // the quota gate reflect the traffic just consumed.
         viewModelScope.launch {
@@ -115,6 +124,21 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            _updateInfo.value = checkUpdateUseCase()
+        }
+    }
+
+    /** "ПОЗЖЕ": remember the dismissed version so the banner stops nagging, and hide it. */
+    fun onUpdateLater() {
+        val info = _updateInfo.value ?: return
+        viewModelScope.launch {
+            updatePrefs.setDismissed(info.versionCode)
+            _updateInfo.value = null
+        }
+    }
+
     fun dismissDeviceLimit() {
         _deviceLimitReached.value = false
     }
@@ -140,10 +164,21 @@ class MainViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, MainUiState())
 
+    // Transient UI flags folded together so the main combine stays within arity.
+    private data class Flags(
+        val limitReached: Boolean,
+        val blockedPrompt: Boolean,
+        val update: UpdateInfo?,
+    )
+
+    private val _flags = combine(_deviceLimitReached, _trafficBlockedPrompt, _updateInfo) { limit, prompt, update ->
+        Flags(limit, prompt, update)
+    }
+
     // Live ping/throughput is merged here so it updates the UI WITHOUT creating a
     // new VpnState instance (which would re-trigger the connection glitch animation).
     val uiState: StateFlow<MainUiState> =
-        combine(_vpnBase, _sub, TunnelStatsBus.stats, _deviceLimitReached, _trafficBlockedPrompt) { base, sub, stats, limitReached, blockedPrompt ->
+        combine(_vpnBase, _sub, TunnelStatsBus.stats, _flags) { base, sub, stats, flags ->
             val connected = base.vpnState is VpnState.Connected
             base.copy(
                 tier                 = sub.tier,
@@ -154,8 +189,9 @@ class MainViewModel @Inject constructor(
                 pingMs               = if (connected) stats.pingMs else base.pingMs,
                 downBps              = if (connected) stats.downBps else 0,
                 upBps                = if (connected) stats.upBps else 0,
-                deviceLimitReached   = limitReached,
-                trafficBlockedPrompt = blockedPrompt,
+                deviceLimitReached   = flags.limitReached,
+                trafficBlockedPrompt = flags.blockedPrompt,
+                updateInfo           = flags.update,
             )
         }.stateIn(
             scope        = viewModelScope,

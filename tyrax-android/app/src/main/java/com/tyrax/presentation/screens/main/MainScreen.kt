@@ -37,9 +37,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tyrax.R
@@ -50,6 +52,7 @@ import com.tyrax.presentation.components.TyraxDialog
 import com.tyrax.presentation.theme.TyraxColors
 import com.tyrax.presentation.theme.TyraxTypography
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun MainScreen(
@@ -144,6 +147,11 @@ fun MainScreen(
         )
     }
 
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var updateBusy by remember { mutableStateOf(false) }
+    var updateError by remember { mutableStateOf<String?>(null) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -156,6 +164,31 @@ fun MainScreen(
             exit    = androidx.compose.animation.fadeOut(tween(400)),
         ) {
             MatrixRainBackground(modifier = Modifier.fillMaxSize())
+        }
+
+        uiState.updateInfo?.let { info ->
+            UpdateBanner(
+                notes    = info.notes,
+                busy     = updateBusy,
+                error    = updateError,
+                mandatory = info.mandatory,
+                onUpdate = {
+                    updateError = null
+                    updateBusy = true
+                    scope.launch {
+                        when (val r = com.tyrax.data.update.ApkInstaller.downloadAndInstall(context, info.url)) {
+                            is com.tyrax.data.update.ApkInstaller.Result.Error ->
+                                updateError = r.message
+                            is com.tyrax.data.update.ApkInstaller.Result.NeedsUnknownSourcesPermission ->
+                                updateError = context.getString(R.string.update_grant_install)
+                            else -> Unit
+                        }
+                        updateBusy = false
+                    }
+                },
+                onLater  = { viewModel.onUpdateLater() },
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
         }
 
         Column(
@@ -264,6 +297,61 @@ fun MainScreen(
                         modifier = Modifier.clickable { onNavigateToSettings() },
                     )
                 }
+            }
+        }
+    }
+}
+
+// ── Update banner ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun UpdateBanner(
+    notes: String,
+    busy: Boolean,
+    error: String?,
+    mandatory: Boolean,
+    onUpdate: () -> Unit,
+    onLater: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(TyraxColors.Black)
+            .border(1.dp, TyraxColors.Red)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text  = stringResource(R.string.update_banner_title),
+            style = TyraxTypography.label.copy(color = TyraxColors.Red),
+        )
+        if (notes.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = notes, style = TyraxTypography.label, color = TyraxColors.SubText)
+        }
+        if (error != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = error, style = TyraxTypography.label, color = TyraxColors.Red)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text  = stringResource(if (busy) R.string.update_downloading else R.string.update_btn_now),
+                style = TyraxTypography.label.copy(color = TyraxColors.White),
+                modifier = Modifier
+                    .border(1.dp, TyraxColors.Red)
+                    .clickable(enabled = !busy) { onUpdate() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            if (!mandatory) {
+                Spacer(modifier = Modifier.size(16.dp))
+                Text(
+                    text  = stringResource(R.string.update_btn_later),
+                    style = TyraxTypography.label.copy(color = TyraxColors.SubText),
+                    modifier = Modifier
+                        .clickable(enabled = !busy) { onLater() }
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                )
             }
         }
     }
