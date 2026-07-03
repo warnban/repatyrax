@@ -92,4 +92,44 @@ public sealed class XrayWindowsConfigAdapterTests
 
         Assert.Equal("node.example", XrayConfigInspector.GetProxyHost(adapted));
     }
+
+    [Fact]
+    public void AdaptForNativeTun_SplitEnabled_RoutesRuDirect()
+    {
+        var json = XrayWindowsConfigAdapter.AdaptForNativeTun(
+            BackendSample, new[] { "sberbank.ru" }, splitEnabled: true);
+
+        Assert.Contains("geoip:ru", json);
+        Assert.Contains("geosite:category-ru", json);
+        Assert.Contains("domain:sberbank.ru", json);
+
+        using var doc = JsonDocument.Parse(json);
+        var routing = doc.RootElement.GetProperty("routing");
+        Assert.Equal("IPIfNonMatch", routing.GetProperty("domainStrategy").GetString());
+
+        // RU direct rules must precede the proxy catch-all so RU traffic bypasses the node.
+        var rules = routing.GetProperty("rules").EnumerateArray().ToArray();
+        var ruIndex = Array.FindIndex(rules, r =>
+            r.TryGetProperty("outboundTag", out var t) && t.GetString() == "direct" &&
+            r.TryGetProperty("ip", out var ip) &&
+            ip.EnumerateArray().Any(i => i.GetString() == "geoip:ru"));
+        var proxyCatchAll = Array.FindIndex(rules, r =>
+            r.TryGetProperty("outboundTag", out var t) && t.GetString() == "proxy" &&
+            r.TryGetProperty("network", out _));
+        Assert.True(ruIndex >= 0, "expected a geoip:ru direct rule");
+        Assert.True(proxyCatchAll >= 0, "expected a proxy catch-all rule");
+        Assert.True(ruIndex < proxyCatchAll, "RU direct rules must precede the proxy catch-all");
+    }
+
+    [Fact]
+    public void AdaptForNativeTun_SplitDisabled_AllViaProxy()
+    {
+        var json = XrayWindowsConfigAdapter.AdaptForNativeTun(BackendSample, null, splitEnabled: false);
+
+        Assert.DoesNotContain("geoip:ru", json);
+        Assert.DoesNotContain("geosite:category-ru", json);
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("AsIs", doc.RootElement.GetProperty("routing").GetProperty("domainStrategy").GetString());
+    }
 }

@@ -20,7 +20,10 @@ public static class XrayWindowsConfigAdapter
     /// Transforms <paramref name="backendConfigJson"/> (SOCKS inbound from
     /// <c>/vpn/connect</c>) into a config xray.exe runs with a native TUN device.
     /// </summary>
-    public static string AdaptForNativeTun(string backendConfigJson)
+    public static string AdaptForNativeTun(
+        string backendConfigJson,
+        IReadOnlyList<string>? splitDomains = null,
+        bool splitEnabled = false)
     {
         var root = JsonNode.Parse(backendConfigJson)?.AsObject()
             ?? throw new ArgumentException("INVALID XRAY CONFIG", nameof(backendConfigJson));
@@ -29,7 +32,7 @@ public static class XrayWindowsConfigAdapter
         root["dns"] = BuildDns();
         root["inbounds"] = new JsonArray(CreateTunInbound());
         EnhanceOutbounds(root);
-        root["routing"] = BuildRouting();
+        root["routing"] = BuildRouting(splitDomains, splitEnabled);
 
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
@@ -125,11 +128,18 @@ public static class XrayWindowsConfigAdapter
     /// <summary>
     /// Mirrors Android routing: private ranges direct (excluding 10.0.0.0/8 — the
     /// TUN subnet lives there), everything else via the VLESS outbound.
+    ///
+    /// <para>When <paramref name="splitEnabled"/>, RU traffic is bypassed DIRECTLY
+    /// (<c>geosite:category-ru</c> + explicit <c>domain:</c> rules + <c>geoip:ru</c>)
+    /// before the proxy catch-all, so RU-geoblocked apps (banks, Wildberries, Ozon)
+    /// reach their servers over the real network with the tunnel on — parity with
+    /// the Android <c>XrayConfigPatcher</c>. Requires geoip.dat/geosite.dat beside
+    /// xray.exe. <c>domainStrategy=IPIfNonMatch</c> lets the geoip rule catch RU IPs
+    /// even when the request is by domain.</para>
     /// </summary>
-    private static JsonObject BuildRouting() => new()
+    private static JsonObject BuildRouting(IReadOnlyList<string>? splitDomains, bool splitEnabled)
     {
-        ["domainStrategy"] = "AsIs",
-        ["rules"] = new JsonArray
+        var rules = new JsonArray
         {
             new JsonObject
             {
@@ -144,12 +154,42 @@ public static class XrayWindowsConfigAdapter
                     "fc00::/7",
                     "fe80::/10"),
             },
-            new JsonObject
+        };
+
+        if (splitEnabled)
+        {
+            // Cast to JsonNode so string values become primitive nodes (matching the
+            // constructor form used elsewhere); the generic Add<string> overload would
+            // create a customized value that fails ToJsonString with custom options.
+            var domains = new JsonArray { (JsonNode)"geosite:category-ru" };
+            if (splitDomains is { Count: > 0 })
+                foreach (var d in splitDomains) domains.Add((JsonNode)$"domain:{d}");
+
+            rules.Add(new JsonObject
             {
                 ["type"] = "field",
-                ["outboundTag"] = "proxy",
-                ["network"] = "tcp,udp",
-            },
-        },
-    };
+                ["outboundTag"] = "direct",
+                ["domain"] = domains,
+            });
+            rules.Add(new JsonObject
+            {
+                ["type"] = "field",
+                ["outboundTag"] = "direct",
+                ["ip"] = new JsonArray("geoip:ru"),
+            });
+        }
+
+        rules.Add(new JsonObject
+        {
+            ["type"] = "field",
+            ["outboundTag"] = "proxy",
+            ["network"] = "tcp,udp",
+        });
+
+        return new JsonObject
+        {
+            ["domainStrategy"] = splitEnabled ? "IPIfNonMatch" : "AsIs",
+            ["rules"] = rules,
+        };
+    }
 }

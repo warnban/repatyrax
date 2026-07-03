@@ -89,7 +89,12 @@ public sealed class TunnelSupervisor : IAsyncDisposable
 
             _paths ??= new EnginePaths();
 
-            var configJson = XrayWindowsConfigAdapter.AdaptForNativeTun(cmd.ConfigJson);
+            // RU split-tunnel defaults ON (parity with Android): when the UI supplies a
+            // split list (it falls back to SplitTunnelDefaults.RuDomains), RU traffic is
+            // routed direct in the engine config so geoblocked apps bypass the node.
+            var splitDomains = cmd.SplitDomains;
+            var splitEnabled = splitDomains is { Count: > 0 };
+            var configJson = XrayWindowsConfigAdapter.AdaptForNativeTun(cmd.ConfigJson, splitDomains, splitEnabled);
             _adaptedConfigJson = configJson;
             _engineRecoveryAttempts = 0;
             _xray = new XrayProcess(_paths, _logger);
