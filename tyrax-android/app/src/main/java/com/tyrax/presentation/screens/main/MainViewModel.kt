@@ -36,10 +36,10 @@ data class MainUiState(
     // Subscription info for FREE-tier traffic counter (server-reported usage).
     val tier: String = "FREE",
     val usedBytes: Long = 0,
-    val trafficLimitBytes: Long = 3L * 1024 * 1024 * 1024,  // 3 GB default for FREE
+    val trafficLimitBytes: Long = 1L * 1024 * 1024 * 1024,  // 1 GB default for FREE
     // Paid tiers report unlimited → the UI shows ∞ instead of a metered bar.
     val unlimited: Boolean = false,
-    // True while the FREE tunnel is locked out for exceeding the 3 GB quota.
+    // True while the FREE tunnel is locked out for exceeding the 1 GB quota.
     val trafficBlocked: Boolean = false,
     // True when this device could not be registered because the tier's device
     // limit is exhausted — the UI prompts the user to upgrade.
@@ -67,7 +67,7 @@ class MainViewModel @Inject constructor(
     private data class SubInfo(
         val tier: String = "FREE",
         val usedBytes: Long = 0,
-        val limitBytes: Long = 3L * 1024 * 1024 * 1024,
+        val limitBytes: Long = 1L * 1024 * 1024 * 1024,
         val unlimited: Boolean = false,
         val blocked: Boolean = false,
     )

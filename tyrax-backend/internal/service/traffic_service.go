@@ -11,8 +11,8 @@ import (
 
 // Traffic quota constants for the FREE tier.
 const (
-	// FreeQuotaBytes is the rolling data allowance for FREE identities (3 GB).
-	FreeQuotaBytes int64 = 3 * 1024 * 1024 * 1024
+	// FreeQuotaBytes is the rolling data allowance for FREE identities (1 GB).
+	FreeQuotaBytes int64 = 1 * 1024 * 1024 * 1024
 	// FreeBlockDuration is how long a FREE identity stays locked out after
 	// exhausting the quota, counted from the moment traffic ran out.
 	FreeBlockDuration = 30 * 24 * time.Hour
@@ -28,7 +28,7 @@ type TrafficReader interface {
 	ClientTraffic(ctx context.Context, node model.Node, email string) (int64, error)
 }
 
-// TrafficService meters FREE-tier data usage and enforces the 3 GB / 30-day
+// TrafficService meters FREE-tier data usage and enforces the 1 GB / 30-day
 // quota. It is deliberately fail-open: any panel or DB error leaves the tunnel
 // working — a user is only ever blocked when blocked_until is explicitly set.
 type TrafficService struct {

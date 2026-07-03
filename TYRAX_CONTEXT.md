@@ -71,7 +71,7 @@ The brand has edge — provocative, but never cheap.
 
 | Tier | Price | Devices | Traffic | Nodes | Priority |
 |---|---|---|---|---|---|
-| **FREE** | 0 ₽ | 1 | 3 GB/month | All | No |
+| **FREE** | 0 ₽ | 1 | 1 GB/month | All | No |
 | **CORE** | 199 ₽/mo | 2 | Unlimited | All | No |
 | **SHADOW** | 349 ₽/mo | Up to 5 | Unlimited | All | Yes |
 | **DOMINION** | 649 ₽/mo | Up to 10 own + invite 3 accounts | Unlimited | All | #1 Priority |
@@ -99,7 +99,7 @@ The brand has edge — provocative, but never cheap.
 - No ads — ever (across all tiers)
 - Full auto-reconnect and auto-protocol switching — same as paid
 - All nodes accessible
-- Only restriction: 3 GB/month traffic cap and 1 device
+- Only restriction: 1 GB/month traffic cap and 1 device
 
 ---
 

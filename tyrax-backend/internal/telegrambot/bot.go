@@ -75,7 +75,7 @@ const (
 	// has just been provisioned, so we frame the value and push straight to connect.
 	msgWelcomeNew = "▓▓▓ TYRAX ▓▓▓\n" +
 		"ДОСТУП ОТКРЫТ.\n\n" +
-		"3 ГБ/мес активны. Без срока. Без логов.\n" +
+		"1 ГБ/мес активны. Без срока. Без логов.\n" +
 		"Оплата: карта РФ · СБП · крипта.\n\n" +
 		"➕ ДОБАВИТЬ УСТРОЙСТВО — 2 минуты до туннеля."
 
@@ -323,7 +323,7 @@ func (b *Bot) handleAccount(msg *tgbotapi.Message) {
 	upsell := ""
 	if tier == model.TierFree {
 		usedGB := float64(user.TrafficUsedBytes) / (1024 * 1024 * 1024)
-		traffic = fmt.Sprintf("%.2f / 3.00 ГБ", usedGB)
+		traffic = fmt.Sprintf("%.2f / 1.00 ГБ", usedGB)
 		validUntil = "БЕЗ СРОКА"
 		upsell = "\n\n▓ Нужен безлимит и до 10 устройств?\nЖми 💳 Купить / продлить."
 	} else if user.SubscriptionEnd != nil {
