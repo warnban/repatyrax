@@ -31,6 +31,7 @@ RUN apk add --no-cache ca-certificates wget \
 
 COPY --from=builder /tyrax /usr/local/bin/tyrax
 COPY admin /app/admin
+COPY partner /app/partner
 COPY migrations /app/migrations
 
 WORKDIR /app
