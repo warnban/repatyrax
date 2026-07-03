@@ -60,7 +60,9 @@ public sealed class XrayWindowsConfigAdapterTests
         var inbound = root.GetProperty("inbounds")[0];
         Assert.Equal("tun", inbound.GetProperty("protocol").GetString());
         Assert.Equal("TYRAX", inbound.GetProperty("settings").GetProperty("name").GetString());
-        Assert.Equal(1400, inbound.GetProperty("settings").GetProperty("mtu").GetInt32());
+        // MTU lowered 1400 → 1280 to avoid fragmentation/PMTUD over xhttp+Reality+TLS,
+        // which caused the slow, rough throughput ramp at the start of a session.
+        Assert.Equal(1280, inbound.GetProperty("settings").GetProperty("mtu").GetInt32());
         Assert.Equal("10.7.0.1/24", inbound.GetProperty("settings").GetProperty("gateway")[0].GetString());
         Assert.Equal("auto", inbound.GetProperty("settings").GetProperty("autoOutboundsInterface").GetString());
         Assert.True(inbound.GetProperty("sniffing").GetProperty("enabled").GetBoolean());
@@ -81,13 +83,16 @@ public sealed class XrayWindowsConfigAdapterTests
         var xmux = root.GetProperty("outbounds")[0]
             .GetProperty("streamSettings").GetProperty("xhttpSettings")
             .GetProperty("extra").GetProperty("xmux");
-        // Warm standby: 2 pooled H2 connections recycle at staggered times so the ~2–3h
-        // recycle never zeroes traffic (was 1 → single mux blackout at recycle).
-        Assert.Equal(2, xmux.GetProperty("maxConnections").GetInt32());
+        // Desktop throughput-ramp: 6 pooled H2 connections so the first streams each
+        // get their own connection and six cwnds ramp in parallel (full speed in
+        // seconds, not ~5 min). Also strengthens warm standby — recycles stagger
+        // across six connections so the ~2–3h recycle never zeroes traffic.
+        Assert.Equal(6, xmux.GetProperty("maxConnections").GetInt32());
         // Keepalive on: deterministic H2 PING (>0s) keeps the mux from being NAT/idle-dropped.
         Assert.True(xmux.GetProperty("hKeepAlivePeriod").GetInt32() > 0);
-        // Anti-throttle intent preserved: no per-connection stream cap.
-        Assert.Equal(0, xmux.GetProperty("maxConcurrency").GetInt32());
+        // Positive per-connection stream cap (Xray's documented default) so a saturated
+        // connection triggers opening a new one, spreading load across the pool.
+        Assert.Equal("16-32", xmux.GetProperty("maxConcurrency").GetString());
         Assert.Equal("7200-10800", xmux.GetProperty("hMaxReusableSecs").GetString());
 
         var routing = root.GetProperty("routing");

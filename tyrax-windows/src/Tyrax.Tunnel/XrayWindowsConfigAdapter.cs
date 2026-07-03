@@ -11,7 +11,17 @@ namespace Tyrax.Tunnel;
 public static class XrayWindowsConfigAdapter
 {
     public const string TunAdapterName = "TYRAX";
-    public const int TunMtu = 1400;
+
+    /// <summary>
+    /// TUN device MTU fed to the xray TUN inbound. Lowered 1400 → 1280 so the
+    /// inner IP packets never exceed the effective path MTU once xhttp + Reality +
+    /// TLS/H2 framing overhead is added: at 1400 the outer segments fragmented /
+    /// tripped PMTUD, which made throughput slow and rough for the first minutes of
+    /// a session until the path settled. 1280 (the IPv6 minimum MTU) is the safe
+    /// floor that avoids fragmentation over any transit. Must stay in sync with
+    /// <c>TunnelConstants.TunMtu</c> so the OS adapter and xray agree.
+    /// </summary>
+    public const int TunMtu = 1280;
 
     /// <summary>Must match <c>TunnelConstants.TunGateway</c> on the service side.</summary>
     public const string TunGateway = "10.7.0.1";
@@ -113,20 +123,26 @@ public static class XrayWindowsConfigAdapter
         var extra = xhttp["extra"] as JsonObject ?? new JsonObject();
         extra["xmux"] = new JsonObject
         {
-            // 0 = no per-connection stream cap: all TUN streams share the mux (anti-throttle
-            // intent — few H2 connections, not many parallel TCP that RU DPI throttles).
-            ["maxConcurrency"] = 0,
-            // Warm standby. Xray's XmuxManager keeps a pool of up to maxConnections; each
-            // connection gets its own UnreusableAt = now + rand(hMaxReusableSecs), so two
-            // connections recycle at STAGGERED times. With a single connection (1) the sole
-            // H2 mux recycled every ~2–3h and tore down in-flight streams → ~2–3h blackout →
-            // health watchdog degrade → node switch. With 2, when one recycles the other still
-            // carries traffic, so recycle is seamless. maxConcurrency=0 skips the concurrency
-            // filter, so traffic spreads across both (still only 2 muxed conns → anti-throttle).
-            ["maxConnections"] = 2,
+            // Desktop throughput-ramp tuning. Per-connection concurrent-stream cap.
+            // "16-32" (Xray's documented default) makes XmuxManager open a NEW H2
+            // connection once a connection saturates that many streams, instead of
+            // 0 = unlimited streams crammed onto as few connections as possible. On
+            // desktop DPI throttle-avoidance is unnecessary, so spreading the TUN
+            // streams across several connections lets each connection's congestion
+            // window ramp in parallel → aggregate throughput reaches full speed in
+            // seconds instead of ~5 min. (Android keeps single-mux anti-throttle.)
+            ["maxConcurrency"] = "16-32",
+            // Connection pool size. XmuxManager.GetXmuxClient() prefers creating a
+            // brand-new connection while the pool is below maxConnections, so raising
+            // this from 2 → 6 means the first several streams each get their own
+            // connection immediately — six cwnds ramping at once. Each connection also
+            // gets its own UnreusableAt = now + rand(hMaxReusableSecs), so recycles are
+            // STAGGERED across six connections: the ~2–3h time-based recycle never
+            // zeroes traffic (warm standby preserved, strengthening the v1.0.17 fix).
+            ["maxConnections"] = 6,
             ["cMaxReuseTimes"] = 0,
             ["hMaxRequestTimes"] = "1000-5000",
-            // Time-based recycle window; the 2-connection pool above staggers these so a
+            // Time-based recycle window; the 6-connection pool above staggers these so a
             // recycle never zeroes traffic.
             ["hMaxReusableSecs"] = "7200-10800",
             // HTTP/2 ReadIdleTimeout (seconds) → H2 PING keepalive interval. 0 let Xray fall
