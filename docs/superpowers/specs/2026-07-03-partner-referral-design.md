@@ -29,7 +29,7 @@ Telegram-only referral attribution with partner portal, admin management, commis
 
 - Manual admin payout (min 2 000 ₽)
 - Partner sets MIR or USDT requisites (plain text, admin-visible)
-- Partner portal: `partner.tyrex.tech` or `/partner` path
+- Partner portal: `partner.tyrax.tech` or `/partner` path
 
 ## Entities
 

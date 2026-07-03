@@ -95,7 +95,7 @@ func Load() *Config {
 		AdminPasswordHash:     loadAdminPasswordHash(),
 		AdminJWTSecret:        getAdminEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
 		PartnerJWTSecretKey:   getEnv("PARTNER_JWT_SECRET", getAdminEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production"))),
-		PartnerPortalURL:      getEnv("PARTNER_PORTAL_URL", "https://partner.tyrex.tech"),
+		PartnerPortalURL:      getEnv("PARTNER_PORTAL_URL", "https://partner.tyrax.tech"),
 		TelegramSupportToken:  getEnv("TELEGRAM_SUPPORT_BOT_TOKEN", ""),
 		TelegramSupportBotURL: getEnv("TELEGRAM_SUPPORT_BOT_URL", "https://t.me/tyrax_support_bot"),
 
