@@ -86,8 +86,9 @@ class TyraxXrayVpnService : VpnService() {
             val patchedConfig = XrayConfigPatcher.enhance(configJson, logDir)
             runCatching { File(logDir, "xray_config.json").writeText(patchedConfig) }
 
-            // 1. Xray first — no TUN yet, node dial cannot loop.
-            Libv2ray.initCoreEnv(filesDir.absolutePath, "")
+            // 1. Xray first — no TUN yet, node dial cannot loop. The second arg is the
+            // asset dir Xray reads geoip.dat/geosite.dat from (enables geoip:ru routing).
+            Libv2ray.initCoreEnv(filesDir.absolutePath, GeoAssets.ensure(this))
             val controller = Libv2ray.newCoreController(CoreCallback())
             coreController = controller
             Log.d(TAG, "startLoop() before TUN, configLen=${patchedConfig.length}")
