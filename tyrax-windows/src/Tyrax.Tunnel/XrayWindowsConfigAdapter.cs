@@ -114,7 +114,9 @@ public static class XrayWindowsConfigAdapter
             ["maxConnections"] = 1,
             ["cMaxReuseTimes"] = 0,
             ["hMaxRequestTimes"] = "1000-5000",
-            ["hMaxReusableSecs"] = "1800-3000",
+            // Desktop sessions run longer than mobile; 1800–3000s (~30–50 min) recycled
+            // the sole H2 mux and briefly starved health probes → false NODE DEGRADED.
+            ["hMaxReusableSecs"] = "7200-10800",
             ["hKeepAlivePeriod"] = 0,
         };
         xhttp["extra"] = extra;

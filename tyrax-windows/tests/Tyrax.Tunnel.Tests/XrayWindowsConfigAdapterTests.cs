@@ -82,6 +82,7 @@ public sealed class XrayWindowsConfigAdapterTests
             .GetProperty("streamSettings").GetProperty("xhttpSettings")
             .GetProperty("extra").GetProperty("xmux");
         Assert.Equal(1, xmux.GetProperty("maxConnections").GetInt32());
+        Assert.Equal("7200-10800", xmux.GetProperty("hMaxReusableSecs").GetString());
 
         var routing = root.GetProperty("routing");
         Assert.Equal("AsIs", routing.GetProperty("domainStrategy").GetString());

@@ -102,6 +102,38 @@ public sealed class NetworkConfigurator
     }
 
     /// <summary>
+    /// Re-wires the WinTun adapter after an in-place xray restart: the adapter name is
+    /// stable but the interface index and split-default routes must be reinstalled.
+    /// Node and RU split <c>/32</c> pins are refreshed via <see cref="RepinNodeAsync"/>.
+    /// </summary>
+    public async Task ReestablishTunRoutesAsync(CancellationToken ct)
+    {
+        if (!_applied || _nodeIp is null)
+            throw new InvalidOperationException("NETWORK NOT APPLIED");
+
+        await RunAsync("route", "delete 0.0.0.0 mask 128.0.0.0", ct, ignoreErrors: true);
+        await RunAsync("route", "delete 128.0.0.0 mask 128.0.0.0", ct, ignoreErrors: true);
+
+        var tunIndex = await WaitForAdapterAsync(TunnelConstants.AdapterName, ct);
+
+        await RunWithRetryAsync("netsh",
+            $"interface ipv4 set address name=\"{TunnelConstants.AdapterName}\" static {TunnelConstants.TunAddress} {TunnelConstants.TunMask}", ct);
+        await RunWithRetryAsync("netsh",
+            $"interface ipv4 set dns name=\"{TunnelConstants.AdapterName}\" static {TunnelConstants.PrimaryDns} primary", ct);
+        await RunWithRetryAsync("netsh",
+            $"interface ipv4 add dns name=\"{TunnelConstants.AdapterName}\" {TunnelConstants.SecondaryDns} index=2", ct,
+            ignoreErrorsOnLast: true);
+
+        await RunAsync("route", $"add 0.0.0.0 mask 128.0.0.0 {TunnelConstants.TunGateway} metric 1 if {tunIndex}", ct);
+        await RunAsync("route", $"add 128.0.0.0 mask 128.0.0.0 {TunnelConstants.TunGateway} metric 1 if {tunIndex}", ct);
+
+        if (!await RepinNodeAsync(ct))
+            throw new InvalidOperationException("NODE RE-PIN FAILED AFTER XRAY RESTART");
+
+        _logger.LogInformation("TUN routes re-established on adapter index {Idx}", tunIndex);
+    }
+
+    /// <summary>
     /// Re-pins the node <c>/32</c> and all RU split routes through the CURRENT physical
     /// gateway. Called on a network handoff (Wi-Fi ↔ Ethernet ↔ LTE): the gateway that
     /// reaches them may have changed, which would otherwise strand the tunnel or leak
@@ -259,18 +291,23 @@ public sealed class NetworkConfigurator
     /// setup, which races the adapter's IP-stack initialisation right after
     /// creation (netsh answers "element not found" for a fraction of a second).
     /// </summary>
-    private async Task RunWithRetryAsync(string file, string args, CancellationToken ct,
-        int attempts = 15, int delayMs = 300)
+    private Task RunWithRetryAsync(string file, string args, CancellationToken ct,
+        int attempts = 15, int delayMs = 300, bool ignoreErrorsOnLast = false)
+        => RunWithRetryCoreAsync(file, args, ct, attempts, delayMs, ignoreErrorsOnLast);
+
+    private async Task RunWithRetryCoreAsync(string file, string args, CancellationToken ct,
+        int attempts, int delayMs, bool ignoreErrorsOnLast)
     {
         for (int i = 1; ; i++)
         {
+            var last = i >= attempts;
             try
             {
-                await RunAsync(file, args, ct);
+                await RunAsync(file, args, ct, ignoreErrors: last && ignoreErrorsOnLast);
                 if (i > 1) _logger.LogInformation("{File} {Args} succeeded on attempt {I}", file, args, i);
                 return;
             }
-            catch (Exception ex) when (i < attempts && !ct.IsCancellationRequested)
+            catch (Exception ex) when (!last && !ct.IsCancellationRequested)
             {
                 _logger.LogDebug("attempt {I}/{N} failed ({Msg}); retrying", i, attempts, ex.Message);
                 await Task.Delay(delayMs, ct);

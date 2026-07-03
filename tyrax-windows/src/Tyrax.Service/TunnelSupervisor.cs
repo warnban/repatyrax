@@ -14,11 +14,10 @@ namespace Tyrax.Service;
 /// (WinTun inbound), (3) wiring routes/DNS — and tears it
 /// all down in reverse. Connect/disconnect are serialized by a semaphore.
 ///
-/// <para>While connected, a monitor loop watches the engines (self-heal is left to
-/// the UI supervisor: a dead engine or a sustained health failure ends in
-/// <see cref="TunnelState.Error"/>, which the UI reacts to by switching node) and
-/// probes tunnel health through the SOCKS inbound. A network-change handler
-/// re-pins the node route so Wi-Fi ↔ Ethernet ↔ LTE handoffs don't strand it.</para>
+/// <para>While connected, a monitor loop watches the engines. Transient health blips
+/// (e.g. XHTTP mux recycle) trigger an in-place xray restart before a full degrade;
+/// only sustained failure or an unrecoverable engine crash ends in
+/// <see cref="TunnelState.Error"/> for the UI supervisor to switch node.</para>
 /// </summary>
 public sealed class TunnelSupervisor : IAsyncDisposable
 {
@@ -32,6 +31,7 @@ public sealed class TunnelSupervisor : IAsyncDisposable
     // shares the same radio as the tunnel. 18s avoids false NODE DEGRADED on Windows.
     private const long ThrottleMs = 18_000;
     private const int MaxFails = 4;
+    private const int MaxEngineRecoveries = 2;
 
     private readonly ILogger<TunnelSupervisor> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -42,6 +42,9 @@ public sealed class TunnelSupervisor : IAsyncDisposable
     private NetworkConfigurator? _net;
     private CancellationTokenSource? _monitorCts;
     private NetworkAddressChangedEventHandler? _netChangeHandler;
+
+    private string? _adaptedConfigJson;
+    private int _engineRecoveryAttempts;
 
     private TunnelState _state = TunnelState.Disconnected;
     private string? _codename;
@@ -87,6 +90,8 @@ public sealed class TunnelSupervisor : IAsyncDisposable
             _paths ??= new EnginePaths();
 
             var configJson = XrayWindowsConfigAdapter.AdaptForNativeTun(cmd.ConfigJson);
+            _adaptedConfigJson = configJson;
+            _engineRecoveryAttempts = 0;
             _xray = new XrayProcess(_paths, _logger);
             await _xray.StartAsync(configJson, ct);
 
@@ -190,10 +195,15 @@ public sealed class TunnelSupervisor : IAsyncDisposable
         {
             lock (_stateLock) { if (_state != TunnelState.Connected) return; }
 
-            // Watchdog: an engine crash is an immediate degrade.
+            // Watchdog: try in-place recovery before a full degrade.
             if (_xray is { IsRunning: false })
             {
-                _logger.LogWarning("xray died → degrading");
+                _logger.LogWarning("xray died → attempting recovery");
+                if (await TryRecoverEngineAsync(token))
+                {
+                    fails = 0;
+                    continue;
+                }
                 _ = DegradeAsync("ENGINE FAILED");
                 return;
             }
@@ -202,6 +212,8 @@ public sealed class TunnelSupervisor : IAsyncDisposable
             if (sinceProbe >= ProbeInterval)
             {
                 sinceProbe = TimeSpan.Zero;
+                if (fails > 0)
+                    TunnelHealth.Reset();
                 var result = await TunnelHealth.ProbeAsync(token);
                 if (!result.Ok || result.ElapsedMs > ThrottleMs) fails++;
                 else fails = 0;
@@ -209,6 +221,12 @@ public sealed class TunnelSupervisor : IAsyncDisposable
 
                 if (fails >= MaxFails)
                 {
+                    _logger.LogWarning("health degraded ({Fails} fails) → attempting recovery", fails);
+                    if (await TryRecoverEngineAsync(token))
+                    {
+                        fails = 0;
+                        continue;
+                    }
                     _ = DegradeAsync("NODE DEGRADED");
                     return;
                 }
@@ -216,6 +234,76 @@ public sealed class TunnelSupervisor : IAsyncDisposable
 
             try { await Task.Delay(Tick, token); }
             catch (OperationCanceledException) { return; }
+        }
+    }
+
+    /// <summary>
+    /// Restarts xray in-place (routes stay pinned) after mux recycle or a dead process.
+    /// Keeps the user connected without forcing the UI supervisor to switch node.
+    /// </summary>
+    private async Task<bool> TryRecoverEngineAsync(CancellationToken token)
+    {
+        if (_adaptedConfigJson is null || _paths is null || _net is null)
+            return false;
+        if (_engineRecoveryAttempts >= MaxEngineRecoveries)
+            return false;
+
+        await _gate.WaitAsync(token);
+        try
+        {
+            lock (_stateLock) { if (_state != TunnelState.Connected) return false; }
+
+            _engineRecoveryAttempts++;
+            _logger.LogInformation("in-place xray recovery attempt {N}/{Max}",
+                _engineRecoveryAttempts, MaxEngineRecoveries);
+
+            TunnelHealth.Reset();
+
+            if (_xray is not null)
+            {
+                await _xray.DisposeAsync();
+                _xray = null;
+            }
+
+            _xray = new XrayProcess(_paths, _logger);
+            await _xray.StartAsync(_adaptedConfigJson, token);
+            await _net.ReestablishTunRoutesAsync(token);
+            FlushDnsCache();
+
+            for (var i = 0; i < 4; i++)
+            {
+                lock (_stateLock) { if (_state != TunnelState.Connected) return false; }
+                var result = await TunnelHealth.ProbeAsync(token);
+                if (result.Ok)
+                {
+                    _logger.LogInformation("engine recovered in ~{Ms}ms", result.ElapsedMs);
+                    return true;
+                }
+                try { await Task.Delay(2000, token); }
+                catch (OperationCanceledException) { return false; }
+            }
+
+            _logger.LogWarning("engine recovery: xray up but health probe still failing");
+            if (_xray is not null)
+            {
+                await _xray.DisposeAsync();
+                _xray = null;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "engine recovery failed");
+            if (_xray is not null)
+            {
+                try { await _xray.DisposeAsync(); } catch { /* ignore */ }
+                _xray = null;
+            }
+            return false;
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
@@ -332,6 +420,7 @@ public sealed class TunnelSupervisor : IAsyncDisposable
             await _xray.DisposeAsync();
             _xray = null;
         }
+        _adaptedConfigJson = null;
     }
 
     private IpcStatus Set(TunnelState state, string? codename, string? message)
