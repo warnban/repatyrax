@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/tyrax/tyrax-backend/internal/model"
@@ -137,8 +138,8 @@ func (s *happSubscriptionService) RenderFeed(ctx context.Context, token string) 
 		}
 		if s.panel != nil {
 			if err := s.panel.AddClient(ctx, node, device.VlessUUID, device.ID); err != nil {
-				// Best-effort — same as Connect/GetConfig.
-				_ = err
+				slog.Warn("happ addClient", "node", node.Codename, "device", device.ID, "err", err.Error())
+				continue // skip: emitting a link the node rejects looks like "no ping"
 			}
 		}
 		lines = append(lines, vpnconfig.GenerateVlessURI(node, device.VlessUUID, nodeRemark(node)))
