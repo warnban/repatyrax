@@ -66,6 +66,13 @@ func GenerateVlessURI(node model.Node, userUUID, remark string) string {
 		if security == "tls" {
 			q.Set("host", node.Host)
 		}
+		// Single multiplexed H2 connection — mirrors Android tuneXhttpMux and the Windows
+		// adapter so HAPP is not throttled on RU LTE by many parallel connections. Per the
+		// Xray VLESS share-link standard (XTLS/Xray-core Discussion #716, section 4.3.19
+		// "(XHTTP) extra", #4000), the whole XHTTP `extra` JSON is shared as the URL-encoded
+		// `extra=` query key; xmux nests inside it. url.Values.Encode() handles the escaping.
+		extra := `{"xmux":{"maxConcurrency":0,"maxConnections":1,"cMaxReuseTimes":0,"hMaxRequestTimes":"1000-5000","hMaxReusableSecs":"1800-3000","hKeepAlivePeriod":0}}`
+		q.Set("extra", extra)
 	}
 
 	tag := remark
