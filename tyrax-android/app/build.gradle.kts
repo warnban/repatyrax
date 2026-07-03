@@ -132,6 +132,9 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    // Real org.json on the unit-test classpath (Android's is a throw-only stub).
+    testImplementation("org.json:json:20240303")
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

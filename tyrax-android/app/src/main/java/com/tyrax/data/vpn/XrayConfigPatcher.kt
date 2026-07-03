@@ -18,6 +18,20 @@ import org.json.JSONObject
  */
 object XrayConfigPatcher {
 
+    /**
+     * RU split-tunnel routing input. When [enabled], [bypassDomains] and `geoip:ru`
+     * are routed to the `direct` (freedom) outbound — which, because the TYRAX process
+     * is excluded from the TUN, exits over the phone's real network (Russian IP).
+     */
+    data class SplitConfig(
+        val enabled: Boolean,
+        val bypassDomains: List<String>,
+    ) {
+        companion object {
+            val DISABLED = SplitConfig(enabled = false, bypassDomains = emptyList())
+        }
+    }
+
     /** Excludes 10.0.0.0/8 — TUN lives at 10.10.0.x and must not bypass the tunnel. */
     private val PRIVATE_CIDRS = listOf(
         "127.0.0.0/8",
@@ -29,7 +43,11 @@ object XrayConfigPatcher {
         "fe80::/10",
     )
 
-    fun enhance(rawConfigJson: String, logDir: String? = null): String {
+    fun enhance(
+        rawConfigJson: String,
+        logDir: String? = null,
+        split: SplitConfig = SplitConfig.DISABLED,
+    ): String {
         val root = JSONObject(rawConfigJson)
 
         if (logDir != null) root.put("log", buildLog(logDir))
@@ -43,11 +61,15 @@ object XrayConfigPatcher {
         tuneXhttpMux(outbounds)
         ensureDnsOutbound(outbounds)
 
+        // IPIfNonMatch lets `geoip:ru` match on the resolved IP when the destination is
+        // reached by raw IP with no visible domain; plain domain rules still match first.
+        val domainStrategy = if (split.enabled) "IPIfNonMatch" else "AsIs"
+
         root.put(
             "routing",
             JSONObject()
-                .put("domainStrategy", "AsIs")
-                .put("rules", buildRoutingRules()),
+                .put("domainStrategy", domainStrategy)
+                .put("rules", buildRoutingRules(split)),
         )
 
         return root.toString()
@@ -138,7 +160,7 @@ object XrayConfigPatcher {
         )
     }
 
-    private fun buildRoutingRules(): JSONArray {
+    private fun buildRoutingRules(split: SplitConfig): JSONArray {
         val rules = JSONArray()
 
         rules.put(
@@ -154,6 +176,28 @@ object XrayConfigPatcher {
                 .put("outboundTag", "direct")
                 .put("ip", JSONArray(PRIVATE_CIDRS)),
         )
+
+        // RU split-tunnel: bypass rules MUST precede the proxy catch-all so RU services
+        // exit over the real (Russian) network instead of the foreign node.
+        if (split.enabled) {
+            if (split.bypassDomains.isNotEmpty()) {
+                // `domain:` prefix matches the domain and all its subdomains.
+                val domains = JSONArray()
+                split.bypassDomains.forEach { domains.put("domain:$it") }
+                rules.put(
+                    JSONObject()
+                        .put("type", "field")
+                        .put("outboundTag", "direct")
+                        .put("domain", domains),
+                )
+            }
+            rules.put(
+                JSONObject()
+                    .put("type", "field")
+                    .put("outboundTag", "direct")
+                    .put("ip", JSONArray(listOf("geoip:ru"))),
+            )
+        }
 
         rules.put(
             JSONObject()
