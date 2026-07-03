@@ -226,10 +226,40 @@ func (r *userRepository) ConsumeConfirmedTelegramToken(ctx context.Context, toke
 	return userID, true, nil
 }
 
+// InvalidatePendingEmailVerifications retires every unused code for the user so
+// resends do not leave stale codes in older emails.
+func (r *userRepository) InvalidatePendingEmailVerifications(ctx context.Context, userID string) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		`UPDATE email_verifications SET used_at = NOW()
+		  WHERE user_id = $1 AND used_at IS NULL`,
+		userID)
+	if err != nil {
+		return fmt.Errorf("invalidate pending email verifications: %w", err)
+	}
+	return nil
+}
+
+// DiscardEmailVerificationByCode removes a row that was created but never emailed.
+func (r *userRepository) DiscardEmailVerificationByCode(ctx context.Context, email, code string) error {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		`UPDATE email_verifications SET used_at = NOW()
+		  WHERE email = $1 AND code = $2 AND used_at IS NULL`,
+		email, code)
+	if err != nil {
+		return fmt.Errorf("discard email verification: %w", err)
+	}
+	return nil
+}
+
 // CreateEmailVerification persists a pending confirmation (both a 6-digit code
 // for in-app entry and an opaque token for the email link) for an unverified
-// identity. Multiple rows may coexist for one user after resends; the newest
-// unused, unexpired one wins.
+// identity. Call InvalidatePendingEmailVerifications before insert on resend.
 func (r *userRepository) CreateEmailVerification(ctx context.Context, userID, email, code, token string, expiresAt time.Time) error {
 	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
 	defer cancel()
@@ -244,24 +274,20 @@ func (r *userRepository) CreateEmailVerification(ctx context.Context, userID, em
 	return nil
 }
 
-// ConfirmEmailByToken consumes a link token, marks it used and flips the user's
-// email_verified flag in one transaction. found is false (nil error) when the
-// token is unknown, expired or already used.
-func (r *userRepository) ConfirmEmailByToken(ctx context.Context, token string) (string, bool, error) {
-	return r.confirmEmail(ctx,
-		`UPDATE email_verifications
-		    SET used_at = NOW()
-		  WHERE token = $1
-		    AND used_at IS NULL
-		    AND expires_at > NOW()
-		RETURNING user_id`,
-		token)
-}
+// ConfirmEmailByCode matches the newest unused, unexpired code for the email,
+// marks it consumed, flips email_verified, and returns JWT fields in one tx.
+func (r *userRepository) ConfirmEmailByCode(ctx context.Context, email, code string) (EmailConfirmResult, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
+	defer cancel()
 
-// ConfirmEmailByCode is the in-app counterpart: it matches the newest unused,
-// unexpired code for the given email.
-func (r *userRepository) ConfirmEmailByCode(ctx context.Context, email, code string) (string, bool, error) {
-	return r.confirmEmail(ctx,
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return EmailConfirmResult{}, false, fmt.Errorf("begin confirm email: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var userID string
+	err = tx.QueryRow(ctx,
 		`UPDATE email_verifications
 		    SET used_at = NOW()
 		  WHERE id = (
@@ -271,36 +297,35 @@ func (r *userRepository) ConfirmEmailByCode(ctx context.Context, email, code str
 		       LIMIT 1
 		  )
 		RETURNING user_id`,
-		email, code)
-}
-
-func (r *userRepository) confirmEmail(ctx context.Context, updateSQL string, args ...any) (string, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, userQueryTimeout)
-	defer cancel()
-
-	tx, err := r.db.Begin(ctx)
+		email, code).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return EmailConfirmResult{}, false, nil
+	}
 	if err != nil {
-		return "", false, fmt.Errorf("begin confirm email: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	var userID string
-	if err := tx.QueryRow(ctx, updateSQL, args...).Scan(&userID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("consume email verification: %w", err)
+		return EmailConfirmResult{}, false, fmt.Errorf("consume email verification: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx,
-		"UPDATE users SET email_verified = TRUE WHERE id = $1", userID); err != nil {
-		return "", false, fmt.Errorf("mark email verified: %w", err)
+	var tier string
+	var confirmedEmail *string
+	err = tx.QueryRow(ctx,
+		`UPDATE users
+		    SET email_verified = TRUE
+		  WHERE id = $1
+		RETURNING subscription_tier::text, email`,
+		userID).Scan(&tier, &confirmedEmail)
+	if err != nil {
+		return EmailConfirmResult{}, false, fmt.Errorf("mark email verified: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", false, fmt.Errorf("commit confirm email: %w", err)
+		return EmailConfirmResult{}, false, fmt.Errorf("commit confirm email: %w", err)
 	}
-	return userID, true, nil
+
+	emailOut := email
+	if confirmedEmail != nil && *confirmedEmail != "" {
+		emailOut = *confirmedEmail
+	}
+	return EmailConfirmResult{UserID: userID, Tier: tier, Email: emailOut}, true, nil
 }
 
 // MarkEmailVerified flips the flag directly — used when SMTP is not configured

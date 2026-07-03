@@ -166,7 +166,7 @@ public sealed partial class AuthViewModel : ObservableObject
 
     {
 
-        var email = Email.Trim();
+        var email = Email.Trim().ToLowerInvariant();
 
         var code = new string(Code.Where(char.IsDigit).ToArray());
 
@@ -455,6 +455,10 @@ public sealed partial class AuthViewModel : ObservableObject
         {
 
             Error = ex.Message;
+
+            if (VerificationRequired && ex.Message.Contains("INVALID OR EXPIRED", StringComparison.OrdinalIgnoreCase))
+
+                Info = "ПОДТВЕРЖДАЛ ЧЕРЕЗ ПИСЬМО? НАЖМИ НАЗАД И ВОЙДИ С ПАРОЛЕМ";
 
         }
 

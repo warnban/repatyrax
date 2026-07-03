@@ -7,6 +7,14 @@ import (
 	"github.com/tyrax/tyrax-backend/internal/model"
 )
 
+// EmailConfirmResult carries the identity fields needed to mint a session JWT
+// after a verification code is consumed — avoids a second DB round-trip.
+type EmailConfirmResult struct {
+	UserID string
+	Tier   string
+	Email  string
+}
+
 type UserRepository interface {
 	FindByID(ctx context.Context, id string) (*model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
@@ -27,8 +35,12 @@ type UserRepository interface {
 
 	// Email confirmation flow (email/password registrations).
 	CreateEmailVerification(ctx context.Context, userID, email, code, token string, expiresAt time.Time) error
-	ConfirmEmailByToken(ctx context.Context, token string) (userID string, found bool, err error)
-	ConfirmEmailByCode(ctx context.Context, email, code string) (userID string, found bool, err error)
+	// InvalidatePendingEmailVerifications marks all unused codes for this user as
+	// consumed so only the latest resend remains valid.
+	InvalidatePendingEmailVerifications(ctx context.Context, userID string) error
+	// DiscardEmailVerificationByCode marks a freshly created row used when SMTP fails.
+	DiscardEmailVerificationByCode(ctx context.Context, email, code string) error
+	ConfirmEmailByCode(ctx context.Context, email, code string) (EmailConfirmResult, bool, error)
 	MarkEmailVerified(ctx context.Context, userID string) error
 
 	// Happ / external subscription feed.

@@ -87,9 +87,9 @@
                            HorizontalAlignment="Center" Margin="0,0,0,16" TextWrapping="Wrap"
                            Visibility="{Binding Info, Converter={StaticResource NonEmptyToVis}}" />
 
-                <TextBlock Text="КОД ИЗ ПИСЬМА" Style="{StaticResource TyraxLabel}" Margin="0,0,0,4" />
+                <TextBlock Text="КОД ИЗ ПОСЛЕДНЕГО ПИСЬМА" Style="{StaticResource TyraxLabel}" Margin="0,0,0,4" />
                 <TextBox Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource TyraxTextBox}" MaxLength="6"
+                         Style="{StaticResource TyraxTextBox}" MaxLength="12"
                          FontSize="22" />
 
                 <Button Content="ПОДТВЕРДИТЬ" Style="{StaticResource TyraxButton}"

@@ -58,17 +58,10 @@ public sealed class AuthRepository : IAuthRepository
 
     public async Task<bool> ResendVerificationAsync(string email, CancellationToken ct = default)
     {
-        try
-        {
-            var d = await ApiErrors.UnwrapAsync(
-                () => _api.ResendVerificationAsync(new ResendRequest(email), ct),
-                "RESEND FAILED");
-            return d.EmailSent;
-        }
-        catch
-        {
-            return false;
-        }
+        var d = await ApiErrors.UnwrapAsync(
+            () => _api.ResendVerificationAsync(new ResendRequest(email.Trim().ToLowerInvariant()), ct),
+            "RESEND FAILED");
+        return d.EmailSent;
     }
 
     public async Task<TelegramInit> TelegramInitAsync(CancellationToken ct = default)

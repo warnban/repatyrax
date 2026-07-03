@@ -139,6 +139,17 @@ func migrationStillNeeded(ctx context.Context, pool *pgxpool.Pool, name string) 
 			return false, fmt.Errorf("check registration_ip column: %w", err)
 		}
 		return !colExists, nil
+	case "016_email_verification.sql":
+		var tableExists bool
+		err := pool.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				 WHERE table_schema = 'public' AND table_name = 'email_verifications'
+			)`).Scan(&tableExists)
+		if err != nil {
+			return false, fmt.Errorf("check email_verifications table: %w", err)
+		}
+		return !tableExists, nil
 	default:
 		return false, nil
 	}
