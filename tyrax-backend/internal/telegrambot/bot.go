@@ -57,7 +57,7 @@ const (
 // button equals the caption verbatim, so these constants are the routing keys.
 const (
 	btnAccount = "📊 МОЙ АККАУНТ"
-	btnConnect = "🔌 ПОДКЛЮЧИТЬ ДЕВАЙС"
+	btnConnect = "➕ ДОБАВИТЬ УСТРОЙСТВО"
 	btnDevices = "🛠 Мои устройства"
 	btnBuy     = "💳 Купить / продлить"
 	btnHelp    = "🆘 Помощь"
@@ -77,7 +77,7 @@ const (
 		"ДОСТУП ОТКРЫТ.\n\n" +
 		"3 ГБ/мес активны. Без срока. Без логов.\n" +
 		"Оплата: карта РФ · СБП · крипта.\n\n" +
-		"🔌 ПОДКЛЮЧИТЬ ДЕВАЙС — 2 минуты до туннеля."
+		"➕ ДОБАВИТЬ УСТРОЙСТВО — 2 минуты до туннеля."
 
 	// msgWelcomeBack greets a returning identity.
 	msgWelcomeBack = "▓▓▓ TYRAX ▓▓▓\n" +
@@ -152,7 +152,7 @@ func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paym
 	if _, err := api.Request(tgbotapi.NewSetMyCommands(
 		tgbotapi.BotCommand{Command: "menu", Description: "Главное меню"},
 		tgbotapi.BotCommand{Command: "account", Description: "Мой аккаунт"},
-		tgbotapi.BotCommand{Command: "connect", Description: "Подключить устройство"},
+		tgbotapi.BotCommand{Command: "connect", Description: "Добавить устройство"},
 		tgbotapi.BotCommand{Command: "buy", Description: "Купить / продлить"},
 		tgbotapi.BotCommand{Command: "help", Description: "Помощь"},
 	)); err != nil {
@@ -429,14 +429,11 @@ func (b *Bot) sendHappSubscription(chatID int64, from *tgbotapi.User, intro, pla
 	}
 	text := intro + "\n\n📖 " + b.websiteURL() + "/guides.html#" + guidesHash +
 		"\n\n▓ КЛЮЧ ПОДПИСКИ ▓\n" +
-		"Тапни по ключу ниже — он скопируется.\n" +
+		"Нажми «📋 СКОПИРОВАТЬ КЛЮЧ» — ключ придёт отдельным сообщением.\n" +
 		"Затем в Happ: + → Import from URL (не открывай ссылку в браузере)."
 	m := tgbotapi.NewMessage(chatID, text)
 	m.ReplyMarkup = b.happSubscriptionKeyboard(subURL, platform)
 	b.send(m)
-	// The key itself goes in its own message as a monospace code entity so a
-	// single tap copies it — no manual long-press selection.
-	b.sendCode(chatID, subURL)
 }
 
 func (b *Bot) sendHappSubscriptionCopy(chatID int64, from *tgbotapi.User) {
@@ -531,29 +528,101 @@ func (b *Bot) handleDevices(msg *tgbotapi.Message) {
 
 	slog.Info("telegram bot", slog.String("action", "devices"), slog.Int64("telegram_id", msg.From.ID), slog.String("user_id", user.ID))
 
+	text, kb := renderDeviceList(user, devices)
+	m := tgbotapi.NewMessage(msg.Chat.ID, text)
+	if kb != nil {
+		m.ReplyMarkup = *kb
+	}
+	b.send(m)
+}
+
+// happDeviceName is the device-type sentinel for the on-demand Happ subscription
+// (mirrors the unexported const in the service package). A device with this name
+// is the only one that carries a copy-key action; native devices log in by
+// Telegram/email and need no key.
+const happDeviceName = "HAPP"
+
+// deviceIcon infers a platform glyph from the device name so the list reads at a
+// glance. Falls back to a generic phone icon for anything unrecognised.
+func deviceIcon(name string) string {
+	n := strings.ToUpper(name)
+	switch {
+	case n == happDeviceName:
+		return "🍎"
+	case strings.Contains(n, "IPHONE"), strings.Contains(n, "IPAD"), strings.Contains(n, "IOS"), strings.Contains(n, "MAC"):
+		return "🍎"
+	case strings.Contains(n, "WIN"):
+		return "💻"
+	case strings.Contains(n, "ANDROID"):
+		return "📱"
+	default:
+		return "📱"
+	}
+}
+
+// deviceTypeLabel is the human-readable type line shown on the device card.
+func deviceTypeLabel(name string) string {
+	if strings.EqualFold(name, happDeviceName) {
+		return "Happ (iPhone / iPad / Mac)"
+	}
+	n := strings.ToUpper(name)
+	switch {
+	case strings.Contains(n, "WIN"):
+		return "Windows"
+	case strings.Contains(n, "ANDROID"):
+		return "Android"
+	case strings.Contains(n, "IPHONE"), strings.Contains(n, "IPAD"), strings.Contains(n, "IOS"), strings.Contains(n, "MAC"):
+		return "iPhone / iPad / Mac"
+	default:
+		return "Приложение TYRAX"
+	}
+}
+
+// renderDeviceList builds the shared "Мои устройства" text + inline keyboard used
+// by both the initial message and the edit-in-place "← К списку" navigation. A
+// nil keyboard signals the empty state (no devices).
+func renderDeviceList(user *model.User, devices []model.Device) (string, *tgbotapi.InlineKeyboardMarkup) {
 	if len(devices) == 0 {
-		b.sendText(msg.Chat.ID, "▓ МОИ УСТРОЙСТВА ▓\n\n"+
-			"Устройств нет.\n"+
-			"Подключи первое через Android, Windows, iPhone или Mac.")
-		return
+		return "▓ МОИ УСТРОЙСТВА ▓\n\n" +
+			"Устройств нет.\n" +
+			"Добавь первое — ➕ ДОБАВИТЬ УСТРОЙСТВО.", nil
 	}
 
 	limit := service.DeviceLimit(user.SubscriptionTier)
 	var sb strings.Builder
 	sb.WriteString("▓ МОИ УСТРОЙСТВА ▓\n\n")
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(devices))
-	for i, d := range devices {
-		sb.WriteString(fmt.Sprintf("[%d] %s — создано %s\n", i+1, d.Name, d.CreatedAt.Format("02.01.2006")))
+	for _, d := range devices {
+		sb.WriteString(fmt.Sprintf("%s %s — создано %s\n", deviceIcon(d.Name), d.Name, d.CreatedAt.Format("02.01.2006")))
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("✕ "+d.Name, "tyrax_del:"+d.ID),
+			tgbotapi.NewInlineKeyboardButtonData(deviceIcon(d.Name)+" "+d.Name, "tyrax_devmenu:"+d.ID),
 		))
 	}
 	sb.WriteString(fmt.Sprintf("\nЛимит: %d/%d слотов занято.\n", len(devices), limit))
-	sb.WriteString("Нажми × чтобы удалить устройство.")
+	sb.WriteString("Выбери устройство для управления.")
 
-	m := tgbotapi.NewMessage(msg.Chat.ID, sb.String())
-	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
-	b.send(m)
+	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	return sb.String(), &kb
+}
+
+// findUserDevice resolves the identity and the single device it owns. Ownership
+// is enforced by only scanning devices returned for this user, so a foreign
+// device ID never matches. Returns ErrDeviceNotFound when the ID is unknown.
+func (b *Bot) findUserDevice(ctx context.Context, telegramID int64, deviceID string) (*model.User, *model.Device, error) {
+	user, err := b.userRepo.FindByTelegramID(ctx, telegramID)
+	if err != nil {
+		return nil, nil, err
+	}
+	devices, err := b.deviceRepo.GetByUserID(ctx, user.ID)
+	if err != nil {
+		return user, nil, err
+	}
+	for i := range devices {
+		if devices[i].ID == deviceID {
+			return user, &devices[i], nil
+		}
+	}
+	return user, nil, repository.ErrDeviceNotFound
 }
 
 func (b *Bot) handleBuyStart(chatID int64) {
@@ -574,6 +643,14 @@ func (b *Bot) handleCallback(cq *tgbotapi.CallbackQuery) {
 		b.handleCopySubCallback(cq)
 	case strings.HasPrefix(data, "tyrax_dev:"):
 		b.handleDeviceCallback(cq, strings.TrimPrefix(data, "tyrax_dev:"))
+	case data == "tyrax_devlist":
+		b.handleDeviceList(cq)
+	case strings.HasPrefix(data, "tyrax_devmenu:"):
+		b.handleDeviceMenu(cq, strings.TrimPrefix(data, "tyrax_devmenu:"))
+	case strings.HasPrefix(data, "tyrax_devkey:"):
+		b.handleDeviceKey(cq, strings.TrimPrefix(data, "tyrax_devkey:"))
+	case strings.HasPrefix(data, "tyrax_delask:"):
+		b.handleDeleteAsk(cq, strings.TrimPrefix(data, "tyrax_delask:"))
 	case strings.HasPrefix(data, "tyrax_del:"):
 		b.handleDeleteCallback(cq, strings.TrimPrefix(data, "tyrax_del:"))
 	case strings.HasPrefix(data, "tyrax_tier:"):
@@ -607,6 +684,129 @@ func (b *Bot) handleDeviceCallback(cq *tgbotapi.CallbackQuery, platform string) 
 func (b *Bot) handleCopySubCallback(cq *tgbotapi.CallbackQuery) {
 	b.answerCallback(cq.ID, "Ключ отправлен отдельным сообщением")
 	b.sendHappSubscriptionCopy(cq.Message.Chat.ID, cq.From)
+}
+
+// handleDeviceList redraws the device list in place (← К списку).
+func (b *Bot) handleDeviceList(cq *tgbotapi.CallbackQuery) {
+	b.answerCallback(cq.ID, "")
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, err := b.userRepo.FindByTelegramID(ctx, cq.From.ID)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		b.editText(cq, msgNoAccount)
+		return
+	}
+	if err != nil {
+		b.editFail(cq, "devlist_find_user", cq.From.ID, "", err)
+		return
+	}
+
+	devices, err := b.deviceRepo.GetByUserID(ctx, user.ID)
+	if err != nil {
+		b.editFail(cq, "devlist_list", cq.From.ID, user.ID, err)
+		return
+	}
+
+	text, kb := renderDeviceList(user, devices)
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text)
+	edit.ReplyMarkup = kb
+	b.send(edit)
+}
+
+// handleDeviceMenu opens a device card in place: name, type, created date, plus
+// actions. Tapping a device NEVER deletes it — deletion is a separate, confirmed
+// step. The copy-key action appears only for the Happ device.
+func (b *Bot) handleDeviceMenu(cq *tgbotapi.CallbackQuery, deviceID string) {
+	b.answerCallback(cq.ID, "")
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, device, err := b.findUserDevice(ctx, cq.From.ID, deviceID)
+	if errors.Is(err, repository.ErrUserNotFound) || errors.Is(err, repository.ErrDeviceNotFound) {
+		b.editText(cq, msgNoAccount)
+		return
+	}
+	if err != nil {
+		b.editFail(cq, "devmenu_lookup", cq.From.ID, "", err)
+		return
+	}
+
+	slog.Info("telegram bot", slog.String("action", "device_menu"), slog.Int64("telegram_id", cq.From.ID), slog.String("user_id", user.ID))
+
+	isHapp := strings.EqualFold(device.Name, happDeviceName)
+	var access string
+	if isHapp {
+		access = "Ключ подписки — по кнопке ниже."
+	} else {
+		access = "Вход по Telegram/email — ключ не нужен."
+	}
+
+	text := fmt.Sprintf(
+		"▓ УСТРОЙСТВО ▓\n\n"+
+			"%s %s\n"+
+			"Тип: %s\n"+
+			"Создано: %s\n\n"+
+			"%s",
+		deviceIcon(device.Name), device.Name, deviceTypeLabel(device.Name),
+		device.CreatedAt.Format("02.01.2006"), access,
+	)
+
+	var rows [][]tgbotapi.InlineKeyboardButton
+	if isHapp {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📋 Скопировать ключ (Happ)", "tyrax_devkey:"+device.ID),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🗑 Удалить устройство", "tyrax_delask:"+device.ID),
+	))
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("← К списку", "tyrax_devlist"),
+	))
+
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text)
+	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	edit.ReplyMarkup = &kb
+	b.send(edit)
+}
+
+// handleDeviceKey sends the Happ subscription key on demand (own message), same
+// path as the copy-key button on the connect flow.
+func (b *Bot) handleDeviceKey(cq *tgbotapi.CallbackQuery, deviceID string) {
+	b.answerCallback(cq.ID, "Ключ отправлен отдельным сообщением")
+	b.sendHappSubscriptionCopy(cq.Message.Chat.ID, cq.From)
+}
+
+// handleDeleteAsk turns the device card into a delete confirmation in place. The
+// real deletion still runs through handleDeleteCallback (tyrax_del:).
+func (b *Bot) handleDeleteAsk(cq *tgbotapi.CallbackQuery, deviceID string) {
+	b.answerCallback(cq.ID, "")
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	_, device, err := b.findUserDevice(ctx, cq.From.ID, deviceID)
+	if errors.Is(err, repository.ErrUserNotFound) || errors.Is(err, repository.ErrDeviceNotFound) {
+		b.editText(cq, msgNoAccount)
+		return
+	}
+	if err != nil {
+		b.editFail(cq, "delask_lookup", cq.From.ID, "", err)
+		return
+	}
+
+	text := fmt.Sprintf("▓ УДАЛЕНИЕ ▓\n\nУдалить «%s»? Устройство потеряет доступ.", device.Name)
+	edit := tgbotapi.NewEditMessageText(cq.Message.Chat.ID, cq.Message.MessageID, text)
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✅ Да, удалить", "tyrax_del:"+device.ID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("← Отмена", "tyrax_devmenu:"+device.ID),
+		),
+	)
+	edit.ReplyMarkup = &kb
+	b.send(edit)
 }
 
 func (b *Bot) handleDeleteCallback(cq *tgbotapi.CallbackQuery, deviceID string) {
@@ -926,4 +1126,16 @@ func (b *Bot) fail(chatID int64, action string, telegramID int64, userID string,
 		slog.String("error", err.Error()),
 	)
 	b.sendText(chatID, msgGenericErr)
+}
+
+// editFail logs the failure and reports it by editing the current message in
+// place — the callback-driven counterpart to fail.
+func (b *Bot) editFail(cq *tgbotapi.CallbackQuery, action string, telegramID int64, userID string, err error) {
+	slog.Error("telegram bot",
+		slog.String("action", action),
+		slog.Int64("telegram_id", telegramID),
+		slog.String("user_id", userID),
+		slog.String("error", err.Error()),
+	)
+	b.editText(cq, msgGenericErr)
 }
