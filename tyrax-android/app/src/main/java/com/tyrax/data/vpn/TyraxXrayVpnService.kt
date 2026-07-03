@@ -16,14 +16,20 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.tyrax.MainActivity
 import com.tyrax.R
+import com.tyrax.data.local.SplitTunnelPrefs
 import com.tyrax.domain.model.VpnState
 import com.v2ray.ang.service.TProxyService
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import libv2ray.CoreCallbackHandler
@@ -57,6 +63,16 @@ class TyraxXrayVpnService : VpnService() {
     private var splitEnabled: Boolean = false
     private var bypassDomains: List<String> = emptyList()
     private var bypassApps: List<String> = emptyList()
+
+    // Self-healing diagnostics loop (detects RU services blocked-through-VPN).
+    private var diagJob: Job? = null
+
+    /** Hilt access to the app-wide [SplitTunnelPrefs] singleton from this non-injected service. */
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface SplitPrefsEntryPoint {
+        fun splitTunnelPrefs(): SplitTunnelPrefs
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand action=${intent?.action} flags=$flags startId=$startId")
@@ -132,6 +148,7 @@ class TyraxXrayVpnService : VpnService() {
                 pingMs = 0,
             )
             startStatsPolling()
+            startSplitDiagnostics()
         } catch (e: Exception) {
             Log.e(TAG, "startTunnel failed", e)
             fail(e.message ?: "CONNECTION FAILED. NODE UNAVAILABLE.")
@@ -239,7 +256,10 @@ class TyraxXrayVpnService : VpnService() {
     private fun stopTunnel() {
         statsJob?.cancel()
         statsJob = null
+        diagJob?.cancel()
+        diagJob = null
         TunnelStatsBus.reset()
+        SplitStatusBus.reset()
         scope.launch {
             if (tun2socksRunning) {
                 runCatching { TProxyService.TProxyStopService() }
@@ -269,7 +289,10 @@ class TyraxXrayVpnService : VpnService() {
     override fun onDestroy() {
         statsJob?.cancel()
         statsJob = null
+        diagJob?.cancel()
+        diagJob = null
         TunnelStatsBus.reset()
+        SplitStatusBus.reset()
         scope.cancel()
         if (tun2socksRunning) {
             runCatching { TProxyService.TProxyStopService() }
@@ -398,6 +421,54 @@ class TyraxXrayVpnService : VpnService() {
         }
     }
 
+    /**
+     * Self-healing RU split-tunnel loop. On connect (and every [DIAG_INTERVAL_MS]) it probes
+     * a small RU marker set through the tunnel vs direct; any marker blocked-through-VPN is
+     * added to the dynamic bypass set (applied on the next connect) and reflected in
+     * [SplitStatusBus]. Pure observation apart from the DataStore write — never mutates the tunnel.
+     */
+    private fun startSplitDiagnostics() {
+        diagJob?.cancel()
+        if (!splitEnabled) {
+            SplitStatusBus.status.value = SplitStatusBus.SplitStatus(bypassCount = 0)
+            return
+        }
+        val prefs = runCatching {
+            EntryPointAccessors
+                .fromApplication(applicationContext, SplitPrefsEntryPoint::class.java)
+                .splitTunnelPrefs()
+        }.getOrNull()
+
+        diagJob = scope.launch {
+            // Publish an initial count immediately so CONTROL shows something on connect.
+            val initialDynamic = prefs?.let { runCatching { it.dynamicBypassDomains.first() }.getOrNull() } ?: emptySet()
+            publishSplitStatus((bypassDomains + initialDynamic).toSet().size, null)
+
+            delay(DIAG_FIRST_DELAY_MS)
+            while (isActive) {
+                val already = prefs?.let { runCatching { it.dynamicBypassDomains.first() }.getOrNull() } ?: emptySet()
+                val allBypass = (bypassDomains + already).toSet()
+                val newlyBlocked = runCatching {
+                    SplitDiagnostics.probeOnce(socksPort, alreadyBypassed = allBypass)
+                }.getOrDefault(emptyList())
+
+                newlyBlocked.forEach { domain -> runCatching { prefs?.addDynamicBypass(domain) } }
+
+                val count = (allBypass + newlyBlocked).size
+                publishSplitStatus(count, newlyBlocked.lastOrNull())
+                delay(DIAG_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun publishSplitStatus(bypassCount: Int, lastAutoAdded: String?) {
+        SplitStatusBus.status.value = SplitStatusBus.SplitStatus(
+            bypassCount = bypassCount,
+            lastCheckedAt = SystemClock.elapsedRealtime(),
+            lastAutoAdded = lastAutoAdded ?: SplitStatusBus.status.value.lastAutoAdded,
+        )
+    }
+
     /** Human-readable throughput: B/S, KB/S or MB/S with one decimal. */
     private fun formatRate(bytesPerSec: Long): String {
         val kb = bytesPerSec / 1024.0
@@ -426,6 +497,10 @@ class TyraxXrayVpnService : VpnService() {
         // Telemetry cadence: sample throughput every second, probe latency less often.
         private const val POLL_INTERVAL_MS = 1_000L
         private const val PING_EVERY_TICKS = 4
+
+        // Split-tunnel self-heal cadence: first sweep shortly after connect, then every 5 min.
+        private const val DIAG_FIRST_DELAY_MS = 10_000L
+        private const val DIAG_INTERVAL_MS = 300_000L
 
         private const val TUN_MTU = 1500
         private const val TUN_ADDRESS = "10.10.0.2"
