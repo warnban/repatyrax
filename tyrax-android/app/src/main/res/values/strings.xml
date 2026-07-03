@@ -149,6 +149,13 @@
     <string name="settings_label_devices">Мои устройства</string>
     <string name="settings_link_telegram">Привязать Telegram</string>
     <string name="settings_telegram_linked">✓ Telegram привязан</string>
+    <string name="settings_section_protocol">ПРОТОКОЛ</string>
+    <string name="settings_split_title">RU СПЛИТ-ТУННЕЛЬ</string>
+    <string name="settings_split_desc">РФ-СЕРВИСЫ ИДУТ НАПРЯМУЮ, ОСТАЛЬНОЕ — ЧЕРЕЗ TYRAX</string>
+    <string name="settings_split_status">RU-BYPASS: %1$d СЕРВИСОВ · АВТО</string>
+    <string name="settings_split_apply_hint">ИЗМЕНЕНИЯ ПРИМЕНЯТСЯ ПРИ СЛЕДУЮЩЕМ ПОДКЛЮЧЕНИИ</string>
+    <string name="settings_toggle_on">ВКЛ</string>
+    <string name="settings_toggle_off">ВЫКЛ</string>
     <string name="settings_section_about">О СЕРВИСЕ</string>
     <string name="settings_about_privacy">Политика конфиденциальности</string>
     <string name="settings_about_terms">Пользовательское соглашение</string>

@@ -3,7 +3,9 @@ package com.tyrax.presentation.screens.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -145,6 +147,17 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ── ПРОТОКОЛ ──────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.settings_section_protocol))
+        SplitTunnelRow(
+            enabled     = uiState.splitEnabled,
+            bypassCount = uiState.splitBypassCount,
+            onToggle    = { viewModel.setSplitEnabled(!uiState.splitEnabled) },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = TyraxColors.MidGray)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // ── О СЕРВИСЕ ─────────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.settings_section_about))
         SettingsRow(
@@ -175,6 +188,67 @@ fun SettingsScreen(
             onClick = { showLogoutDialog = true },
         )
         HorizontalDivider(thickness = 0.5.dp, color = TyraxColors.MidGray)
+    }
+}
+
+@Composable
+private fun SplitTunnelRow(
+    enabled: Boolean,
+    bypassCount: Int,
+    onToggle: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(vertical = 18.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(
+                text  = stringResource(R.string.settings_split_title),
+                style = TyraxTypography.label,
+                color = TyraxColors.White,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text  = if (enabled && bypassCount > 0) {
+                    stringResource(R.string.settings_split_status, bypassCount)
+                } else {
+                    stringResource(R.string.settings_split_desc)
+                },
+                style = TyraxTypography.label,
+                color = TyraxColors.SubText,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text  = stringResource(R.string.settings_split_apply_hint),
+                style = TyraxTypography.label,
+                color = TyraxColors.MidGray,
+            )
+        }
+        TyraxToggle(enabled = enabled, onToggle = onToggle)
+    }
+}
+
+/** Sharp-cornered TYRAX toggle: red-filled ВКЛ / outlined ВЫКЛ. No Material Switch. */
+@Composable
+private fun TyraxToggle(enabled: Boolean, onToggle: () -> Unit) {
+    val bg = if (enabled) TyraxColors.Red else TyraxColors.Black
+    val fg = if (enabled) TyraxColors.Black else TyraxColors.SubText
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .border(1.dp, if (enabled) TyraxColors.Red else TyraxColors.MidGray)
+            .background(bg)
+            .clickable { onToggle() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text  = stringResource(if (enabled) R.string.settings_toggle_on else R.string.settings_toggle_off),
+            style = TyraxTypography.label,
+            color = fg,
+        )
     }
 }
 

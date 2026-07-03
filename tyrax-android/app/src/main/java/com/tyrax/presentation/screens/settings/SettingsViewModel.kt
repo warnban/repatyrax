@@ -2,7 +2,9 @@ package com.tyrax.presentation.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tyrax.data.local.SplitTunnelPrefs
 import com.tyrax.data.local.TokenStore
+import com.tyrax.data.vpn.SplitStatusBus
 import com.tyrax.domain.repository.AuthRepository
 import com.tyrax.domain.usecase.GetSubscriptionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +24,8 @@ data class SettingsUiState(
     val devicesInfo: String? = null,
     val telegramLinked: Boolean = false,
     val loggedOut: Boolean = false,
+    val splitEnabled: Boolean = true,
+    val splitBypassCount: Int = 0,
 )
 
 sealed class SettingsUiEvent {
@@ -33,6 +37,7 @@ class SettingsViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val getSubscriptionUseCase: GetSubscriptionUseCase,
     private val tokenStore: TokenStore,
+    private val splitTunnelPrefs: SplitTunnelPrefs,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -53,6 +58,21 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            splitTunnelPrefs.enabled.collect { enabled ->
+                _uiState.update { it.copy(splitEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            SplitStatusBus.status.collect { status ->
+                _uiState.update { it.copy(splitBypassCount = status.bypassCount) }
+            }
+        }
+    }
+
+    /** Toggles the RU split-tunnel. Applied on the next tunnel connect. */
+    fun setSplitEnabled(value: Boolean) {
+        viewModelScope.launch { splitTunnelPrefs.setEnabled(value) }
     }
 
     private fun loadProfile() {
