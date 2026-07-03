@@ -28,14 +28,27 @@ object XrayManager {
     // Retained so the connection can resume after the consent dialog returns.
     private var pendingConfig: String? = null
     private var pendingCodename: String = "—"
+    private var pendingSplitEnabled: Boolean = false
+    private var pendingBypassDomains: List<String> = emptyList()
+    private var pendingBypassApps: List<String> = emptyList()
 
     /**
-     * Starts the Xray VpnService with the ready-to-use config JSON from POST /vpn/connect.
+     * Starts the Xray VpnService with the ready-to-use config JSON from POST /vpn/connect,
+     * carrying the RU split-tunnel config so RU services bypass the tunnel.
      */
-    fun startVpn(context: Context, xrayConfigJson: String, nodeCodename: String) {
-        Log.d(TAG, "startVpn() node=$nodeCodename configLen=${xrayConfigJson.length}")
+    fun startVpn(
+        context: Context,
+        xrayConfigJson: String,
+        nodeCodename: String,
+        split: XrayConfigPatcher.SplitConfig = XrayConfigPatcher.SplitConfig.DISABLED,
+        bypassApps: List<String> = emptyList(),
+    ) {
+        Log.d(TAG, "startVpn() node=$nodeCodename configLen=${xrayConfigJson.length} split=${split.enabled}")
         pendingConfig = xrayConfigJson
         pendingCodename = nodeCodename
+        pendingSplitEnabled = split.enabled
+        pendingBypassDomains = split.bypassDomains
+        pendingBypassApps = bypassApps
         VpnStateBus.activeEngine = VpnStateBus.Engine.XRAY
 
         val consent = VpnService.prepare(context.applicationContext)
@@ -72,6 +85,9 @@ object XrayManager {
             action = TyraxXrayVpnService.ACTION_CONNECT
             putExtra(TyraxXrayVpnService.EXTRA_CONFIG_JSON, xrayConfigJson)
             putExtra(TyraxXrayVpnService.EXTRA_CODENAME, codename)
+            putExtra(TyraxXrayVpnService.EXTRA_SPLIT_ENABLED, pendingSplitEnabled)
+            putStringArrayListExtra(TyraxXrayVpnService.EXTRA_BYPASS_DOMAINS, ArrayList(pendingBypassDomains))
+            putStringArrayListExtra(TyraxXrayVpnService.EXTRA_BYPASS_APPS, ArrayList(pendingBypassApps))
         }
         ContextCompat.startForegroundService(appContext, intent)
     }

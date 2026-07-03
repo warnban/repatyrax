@@ -53,6 +53,11 @@ class TyraxXrayVpnService : VpnService() {
     private var statsJob: Job? = null
     private var socksPort: Int = DEFAULT_SOCKS_PORT
 
+    // RU split-tunnel config, delivered via intent extras from XrayManager.
+    private var splitEnabled: Boolean = false
+    private var bypassDomains: List<String> = emptyList()
+    private var bypassApps: List<String> = emptyList()
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand action=${intent?.action} flags=$flags startId=$startId")
         when (intent?.action) {
@@ -65,6 +70,10 @@ class TyraxXrayVpnService : VpnService() {
                 val socksPort = intent.getIntExtra(EXTRA_SOCKS_PORT, DEFAULT_SOCKS_PORT)
                 this.socksPort = socksPort
                 codename = intent.getStringExtra(EXTRA_CODENAME) ?: "—"
+                splitEnabled = intent.getBooleanExtra(EXTRA_SPLIT_ENABLED, false)
+                bypassDomains = intent.getStringArrayListExtra(EXTRA_BYPASS_DOMAINS) ?: emptyList()
+                bypassApps = intent.getStringArrayListExtra(EXTRA_BYPASS_APPS) ?: emptyList()
+                Log.d(TAG, "split enabled=$splitEnabled domains=${bypassDomains.size} apps=${bypassApps.size}")
                 Log.d(TAG, "onStartCommand, config length=${configJson?.length ?: 0}")
                 Log.d(TAG, "ACTION_CONNECT codename=$codename socksPort=$socksPort")
                 if (configJson.isNullOrBlank()) {
@@ -83,7 +92,11 @@ class TyraxXrayVpnService : VpnService() {
             val logDir = (getExternalFilesDir(null) ?: filesDir).absolutePath
             runCatching { File(logDir, "xray_access.log").delete() }
             runCatching { File(logDir, "xray_error.log").delete() }
-            val patchedConfig = XrayConfigPatcher.enhance(configJson, logDir)
+            val patchedConfig = XrayConfigPatcher.enhance(
+                configJson,
+                logDir,
+                XrayConfigPatcher.SplitConfig(splitEnabled, bypassDomains),
+            )
             runCatching { File(logDir, "xray_config.json").writeText(patchedConfig) }
 
             // 1. Xray first — no TUN yet, node dial cannot loop. The second arg is the
@@ -143,6 +156,18 @@ class TyraxXrayVpnService : VpnService() {
             Log.d(TAG, "addDisallowedApplication OK: $packageName")
         } catch (e: Exception) {
             Log.e(TAG, "addDisallowedApplication FAILED", e)
+        }
+
+        // RU split-tunnel (per-app layer): exclude known RU apps so their traffic never
+        // enters the TUN and exits over the real (Russian) network. Not-installed packages
+        // throw NameNotFoundException and are skipped safely.
+        if (splitEnabled) {
+            var excluded = 0
+            for (pkg in bypassApps) {
+                runCatching { builder.addDisallowedApplication(pkg) }
+                    .onSuccess { excluded++ }
+            }
+            Log.d(TAG, "RU bypass apps excluded from TUN: $excluded/${bypassApps.size}")
         }
 
         return builder.establish()
@@ -389,6 +414,9 @@ class TyraxXrayVpnService : VpnService() {
         const val EXTRA_CONFIG_JSON = "xray_config"
         const val EXTRA_SOCKS_PORT = "socks_port"
         const val EXTRA_CODENAME = "codename"
+        const val EXTRA_SPLIT_ENABLED = "split_enabled"
+        const val EXTRA_BYPASS_DOMAINS = "bypass_domains"
+        const val EXTRA_BYPASS_APPS = "bypass_apps"
 
         private const val TAG = "TYRAX-XraySvc"
         private const val CHANNEL_ID = "tyrax_protocol"
