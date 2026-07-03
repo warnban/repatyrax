@@ -60,7 +60,7 @@ func Load() *Config {
 		SupportEmail:        getEnv("SUPPORT_EMAIL", "support@tyrax.tech"),
 		WebsiteURL:          getEnv("WEBSITE_URL", "https://tyrax.tech"),
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", "https://api.tyrax.tech"),
-		WindowsAppVersion:   getEnv("WINDOWS_APP_VERSION", "1.0.11"),
+		WindowsAppVersion:   getEnv("WINDOWS_APP_VERSION", "1.0.13"),
 		Port:                getEnv("PORT", "8080"),
 
 		FreeKassaShopID:      getEnvInt("FREEKASSA_SHOP_ID", 0),
