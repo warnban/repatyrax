@@ -45,6 +45,11 @@ services:
       CRYPTO_PAY_TOKEN: ${CRYPTO_PAY_TOKEN}
       TELEGRAM_SUPPORT_BOT_TOKEN: ${TELEGRAM_SUPPORT_BOT_TOKEN:-}
       TELEGRAM_SUPPORT_BOT_URL: ${TELEGRAM_SUPPORT_BOT_URL:-https://t.me/tyrax_support_bot}
+      SMTP_HOST: ${SMTP_HOST:-smtp.timeweb.ru}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USERNAME: ${SMTP_USERNAME:-support@tyrax.tech}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-TYRAX <support@tyrax.tech>}
       PORT: 8080
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
