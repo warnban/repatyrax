@@ -13,6 +13,7 @@ public sealed partial class ShellViewModel : ObservableObject
 
     private readonly ISession _session;
     private readonly ISecureStore _store;
+    private readonly IVpnRepository _vpn;
     private readonly IBillingRepository _billing;
     private readonly TunnelIpcClient _ipc;
     private readonly ConnectionSupervisor _supervisor;
@@ -42,6 +43,7 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         _session = session;
         _store = store;
+        _vpn = vpn;
         _billing = billing;
         _ipc = ipc;
         _supervisor = new ConnectionSupervisor(vpn, session, ipc);
@@ -105,7 +107,14 @@ public sealed partial class ShellViewModel : ObservableObject
     {
         NeedsOnboarding = false;
         IsAuthenticated = true;
+        _ = EnsureDeviceRegisteredAsync();
         _ = RefreshSubscriptionAsync();
+    }
+
+    private async Task EnsureDeviceRegisteredAsync()
+    {
+        try { await _vpn.RegisterDeviceAsync(_session.DeviceName); }
+        catch (Exception) { /* connect path can still auto-provision */ }
     }
 
     private async void OnOpenNodes()

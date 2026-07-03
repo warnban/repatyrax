@@ -51,6 +51,10 @@ public sealed class ConnectionSupervisor : IDisposable
     private SupervisorPhase _phase = SupervisorPhase.Idle;
     private CancellationTokenSource? _loopCts;
     private Task _loopTask = Task.CompletedTask;
+    private volatile string? _lastFailure;
+
+    /// <summary>Last connect failure surfaced to the UI (NODE UNAVAILABLE, etc.).</summary>
+    public string? LastFailure => _lastFailure;
     private CancellationTokenSource _dropCts = new();
 
     public ConnectionSupervisor(IVpnRepository vpn, ISession session, TunnelIpcClient ipc)
@@ -67,7 +71,7 @@ public sealed class ConnectionSupervisor : IDisposable
     /// <summary>Current supervisor phase, so the UI shows a coherent status + button.</summary>
     public SupervisorPhase Phase => _phase;
 
-    /// <summary>Raised whenever <see cref="Phase"/> changes.</summary>
+    /// <summary>Raised whenever <see cref="Phase"/> changes or a new failure is recorded.</summary>
     public event Action<SupervisorPhase>? PhaseChanged;
 
     /// <summary>User pressed ENTER, or chose a node. Restarts supervision, preferring <paramref name="preferredCodename"/>.</summary>
@@ -98,6 +102,7 @@ public sealed class ConnectionSupervisor : IDisposable
         {
             await StopLoopAsync();
             _wants = true;
+            SetFailure(null);
             SetPhase(SupervisorPhase.Working);
             var cts = new CancellationTokenSource();
             lock (_gate) _loopCts = cts;
@@ -190,17 +195,26 @@ public sealed class ConnectionSupervisor : IDisposable
                 SplitDomains = (IReadOnlyList<string>)split,
             }, ct);
         }
-        catch (TyraxException)
+        catch (TyraxException ex)
         {
+            SetFailure(ex.Message);
             return false;
         }
         catch (Exception)
         {
+            SetFailure("CONNECTION FAILED. RETRY.");
             return false; // pipe send failed etc.
         }
 
         var reached = await WaitForStatusAsync(s => s.State is TunnelState.Connected or TunnelState.Error, ConnectTimeout, ct);
-        return reached?.State == TunnelState.Connected;
+        if (reached?.State == TunnelState.Connected)
+        {
+            SetFailure(null);
+            return true;
+        }
+
+        SetFailure(string.IsNullOrWhiteSpace(reached?.Message) ? "NODE UNAVAILABLE" : reached.Message);
+        return false;
     }
 
     private async Task MonitorUntilDropAsync(CancellationToken ct)
@@ -259,11 +273,19 @@ public sealed class ConnectionSupervisor : IDisposable
         old.Dispose();
     }
 
+    private void NotifyPhase() => PhaseChanged?.Invoke(_phase);
+
     private void SetPhase(SupervisorPhase phase)
     {
         bool changed;
         lock (_gate) { changed = _phase != phase; _phase = phase; }
-        if (changed) PhaseChanged?.Invoke(phase);
+        if (changed) NotifyPhase();
+    }
+
+    private void SetFailure(string? message)
+    {
+        _lastFailure = message;
+        NotifyPhase();
     }
 
     private static async Task DelayQuiet(TimeSpan d, CancellationToken ct)

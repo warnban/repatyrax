@@ -321,12 +321,11 @@ func (s *vpnService) Connect(ctx context.Context, userID, deviceName, codename s
 	case "wireguard":
 		return nil, fmt.Errorf("wireguard reconnect requires device provisioning")
 	case "vless":
-		// The device must be registered on THIS node's inbound or Xray will
-		// reject it (Reality serves the decoy site instead). Idempotent; a
-		// node without panel creds is a no-op (manual / shared-UUID node).
+		// Register on this node's inbound before handing config. Best-effort:
+		// AddDevice already tries once; a transient panel failure must not block
+		// connect when the UUID is already on the inbound.
 		if err := s.panel.AddClient(ctx, *node, device.VlessUUID, device.ID); err != nil {
-			slog.Error("panel addClient (connect)", "node", node.Codename, "device", device.ID, "err", err.Error())
-			return nil, ErrNodeUnavailable
+			slog.Warn("panel addClient (connect)", "node", node.Codename, "device", device.ID, "err", err.Error())
 		}
 		config = vpnconfig.GenerateVlessConfig(*node, device.VlessUUID)
 	default:

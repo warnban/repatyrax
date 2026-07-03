@@ -201,7 +201,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (active && _phase == SupervisorPhase.Reconnecting && State != TunnelState.Connected)
         {
-            StatusText = "ВОССТАНОВЛЕНИЕ ДОСТУПА…";
+            StatusText = string.IsNullOrWhiteSpace(_supervisor.LastFailure)
+                ? "ВОССТАНОВЛЕНИЕ ДОСТУПА…"
+                : _supervisor.LastFailure!.ToUpperInvariant();
             IsBreaching = true;
             IsRainActive = false;
             return;
