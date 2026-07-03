@@ -79,6 +79,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Exposes VERSION_CODE / VERSION_NAME for the in-app update checker.
+        buildConfig = true
     }
 }
 

@@ -60,6 +60,11 @@ interface TyraxApiService {
     @GET("vpn/split-domains")
     suspend fun getSplitDomains(): ApiResponse<SplitDomainsDto>
 
+    // ── Update manifest ────────────────────────────────────────────────────────
+    // Absolute @Url — the manifest lives outside /api/v1/ (served at the API root).
+    @GET
+    suspend fun getAndroidLatest(@Url url: String): AndroidUpdateDto
+
     // ── Subscription ──────────────────────────────────────────────────────────
 
     @GET("subscription")

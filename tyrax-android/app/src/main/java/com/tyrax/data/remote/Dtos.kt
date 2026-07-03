@@ -103,6 +103,16 @@ data class SplitDomainsDto(
     @SerializedName("updated_at") val updatedAt: String? = null,
 )
 
+// ── Update manifest ─────────────────────────────────────────────────────────
+// Served raw (NOT wrapped in ApiResponse) at /download/android/latest.json.
+data class AndroidUpdateDto(
+    val version: String = "",
+    @SerializedName("version_code") val versionCode: Int = 0,
+    val url: String = "",
+    val mandatory: Boolean = false,
+    val notes: String = "",
+)
+
 // ── Subscription ──────────────────────────────────────────────────────────────
 
 data class SubscriptionDto(
