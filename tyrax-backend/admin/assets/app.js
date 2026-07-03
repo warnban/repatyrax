@@ -8,6 +8,7 @@ const loginForm = $("#login-form");
 const loginError = $("#login-error");
 const usersBody = $("#users-body");
 const userModal = $("#user-modal");
+const partnerModal = $("#partner-modal");
 const modalBody = $("#modal-body");
 const modalTitle = $("#modal-title");
 const ticketList = $("#ticket-list");
@@ -45,6 +46,7 @@ function showMain() {
   loginScreen.classList.add("hidden");
   mainScreen.classList.remove("hidden");
   loadUsers();
+  loadPartners();
   loadTickets();
 }
 
@@ -190,6 +192,141 @@ function renderConnections(rows) {
 }
 
 $("#modal-close").addEventListener("click", () => userModal.close());
+$("#partner-modal-close").addEventListener("click", () => partnerModal.close());
+
+$("#save-rate-btn").addEventListener("click", async () => {
+  try {
+    await api("/partners/settings", {
+      method: "PUT",
+      body: JSON.stringify({ default_commission_rate: parseFloat($("#global-rate").value) }),
+    });
+    $("#invite-link-out").textContent = "ПРОЦЕНТ СОХРАНЁН";
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+$("#create-invite-btn").addEventListener("click", async () => {
+  try {
+    const res = await api("/partners/invites", { method: "POST" });
+    $("#invite-link-out").textContent = res.data.invite_link;
+    if (navigator.clipboard) await navigator.clipboard.writeText(res.data.invite_link);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+async function loadPartners() {
+  try {
+    const settings = await api("/partners/settings");
+    $("#global-rate").value = settings.data.default_commission_rate;
+    const res = await api("/partners");
+    const body = $("#partners-body");
+    body.innerHTML = "";
+    for (const row of res.data.partners || []) {
+      const p = row;
+      const s = row.stats || {};
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(p.display_name)}<br><span class="muted">${escapeHtml(p.email)}</span></td>
+        <td>${p.ref_code}</td>
+        <td>${s.registrations || 0}</td>
+        <td>${s.active_users || 0}</td>
+        <td>${s.conversions || 0}</td>
+        <td>${formatRub(p.balance_available)}</td>
+        <td>${formatRub(p.balance_hold)}</td>
+        <td>${formatRub(p.total_paid_out)}</td>`;
+      tr.addEventListener("click", () => openPartner(p.id));
+      body.appendChild(tr);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function formatRub(n) {
+  return Number(n || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 }) + " ₽";
+}
+
+async function openPartner(id) {
+  const res = await api("/partners/" + id);
+  const p = res.data.partner;
+  const payouts = res.data.payouts || [];
+  $("#partner-modal-title").textContent = p.display_name;
+  $("#partner-modal-body").innerHTML = `
+    <div class="grid-2">
+      <div><span class="muted">EMAIL</span><br>${escapeHtml(p.email)}</div>
+      <div><span class="muted">REF CODE</span><br>${p.ref_code}</div>
+      <div><span class="muted">ДОСТУПНО</span><br>${formatRub(p.balance_available)}</div>
+      <div><span class="muted">HOLD</span><br>${formatRub(p.balance_hold)}</div>
+    </div>
+    <div class="section">
+      <h3>РЕКВИЗИТЫ</h3>
+      <p>${renderPayoutDetails(p)}</p>
+    </div>
+    <div class="section">
+      <h3>ИНДИВИДУАЛЬНЫЙ %</h3>
+      <div class="grant-row">
+        <input type="number" id="partner-override" min="0" max="100" step="0.1" placeholder="глобальный" value="${p.commission_rate_override ?? ""}">
+        <button class="btn" id="save-override-btn">СОХРАНИТЬ</button>
+      </div>
+    </div>
+    <div class="section">
+      <h3>ВЫПЛАТА</h3>
+      <div class="grant-row">
+        <input type="number" id="payout-amount" min="2000" step="1" placeholder="СУММА ₽">
+        <input type="text" id="payout-note" placeholder="КОММЕНТАРИЙ">
+        <button class="btn btn-primary" id="payout-btn">ВЫПЛАТИТЬ</button>
+      </div>
+      <p id="payout-result" class="muted"></p>
+    </div>
+    <div class="section">
+      <h3>ИСТОРИЯ ВЫПЛАТ</h3>
+      ${payouts.length ? `<table><thead><tr><th>ДАТА</th><th>СУММА</th><th>NOTE</th></tr></thead><tbody>` +
+        payouts.map((r) => `<tr><td>${formatDate(r.created_at)}</td><td>${formatRub(r.amount_rub)}</td><td>${escapeHtml(r.note || "—")}</td></tr>`).join("") +
+        "</tbody></table>" : "<p class='muted'>НЕТ</p>"}
+    </div>`;
+
+  $("#save-override-btn").onclick = async () => {
+    const raw = $("#partner-override").value.trim();
+    const val = raw === "" ? null : parseFloat(raw);
+    await api(`/partners/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ commission_rate_override: val }),
+    });
+    openPartner(id);
+    loadPartners();
+  };
+
+  $("#payout-btn").onclick = async () => {
+    try {
+      await api(`/partners/${id}/payout`, {
+        method: "POST",
+        body: JSON.stringify({
+          amount: parseFloat($("#payout-amount").value),
+          note: $("#payout-note").value.trim(),
+        }),
+      });
+      $("#payout-result").textContent = "ВЫПЛАЧЕНО";
+      openPartner(id);
+      loadPartners();
+    } catch (err) {
+      $("#payout-result").textContent = err.message;
+    }
+  };
+
+  partnerModal.showModal();
+}
+
+function renderPayoutDetails(p) {
+  if (p.payout_method === "mir" && p.payout_mir_card) {
+    return "МИР: " + escapeHtml(p.payout_mir_card);
+  }
+  if (p.payout_method === "usdt") {
+    return "USDT (" + escapeHtml(p.payout_usdt_network || "") + "): " + escapeHtml(p.payout_usdt_address || "");
+  }
+  return "<span class='muted'>НЕ УКАЗАНЫ</span>";
+}
 
 $("#ticket-filter").addEventListener("change", loadTickets);
 $("#ticket-refresh").addEventListener("click", loadTickets);

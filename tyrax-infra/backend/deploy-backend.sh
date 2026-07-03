@@ -69,6 +69,7 @@ echo "  -> Backend + Postgres up. Migrations 001..009 auto-applied on first boot
 
 echo "==> [6/6] Caddy reverse proxy -> :8080 with auto TLS"
 ADMIN_DOMAIN="${ADMIN_DOMAIN:-admin.tyrax.tech}"
+PARTNER_DOMAIN="${PARTNER_DOMAIN:-partner.tyrax.tech}"
 cat >/etc/caddy/Caddyfile <<EOF
 ${API_DOMAIN} {
     encode zstd gzip
@@ -76,6 +77,11 @@ ${API_DOMAIN} {
 }
 
 ${ADMIN_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8080
+}
+
+${PARTNER_DOMAIN} {
     encode zstd gzip
     reverse_proxy 127.0.0.1:8080
 }

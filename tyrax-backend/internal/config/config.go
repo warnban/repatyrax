@@ -38,6 +38,8 @@ type Config struct {
 	AdminPassword         string
 	AdminPasswordHash     string
 	AdminJWTSecret        string
+	PartnerJWTSecretKey   string
+	PartnerPortalURL      string
 	TelegramSupportToken  string
 	TelegramSupportBotURL string
 
@@ -49,11 +51,17 @@ type Config struct {
 	SMTPFrom     string
 }
 
-// EmailVerificationEnabled reports whether email confirmation is active. It is
-// gated on an SMTP password being present so dev/local (no credentials) skips
-// verification and email registrations remain immediately usable.
+// EmailVerificationEnabled reports whether email confirmation is active.
 func (c *Config) EmailVerificationEnabled() bool {
 	return c.SMTPPassword != ""
+}
+
+// PartnerJWTSecret returns the HMAC secret for partner portal sessions.
+func (c *Config) PartnerJWTSecret() string {
+	if c.PartnerJWTSecretKey != "" {
+		return c.PartnerJWTSecretKey
+	}
+	return c.AdminJWTSecret
 }
 
 func Load() *Config {
@@ -86,6 +94,8 @@ func Load() *Config {
 		AdminPassword:         getAdminEnv("ADMIN_PASSWORD"),
 		AdminPasswordHash:     loadAdminPasswordHash(),
 		AdminJWTSecret:        getAdminEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production")),
+		PartnerJWTSecretKey:   getEnv("PARTNER_JWT_SECRET", getAdminEnv("ADMIN_JWT_SECRET", getEnv("JWT_SECRET", "change-me-in-production"))),
+		PartnerPortalURL:      getEnv("PARTNER_PORTAL_URL", "https://partner.tyrex.tech"),
 		TelegramSupportToken:  getEnv("TELEGRAM_SUPPORT_BOT_TOKEN", ""),
 		TelegramSupportBotURL: getEnv("TELEGRAM_SUPPORT_BOT_URL", "https://t.me/tyrax_support_bot"),
 

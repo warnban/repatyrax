@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TYRAX — ПАРТНЁР</title>
+  <link rel="stylesheet" href="/partner/assets/style.css">
+</head>
+<body>
+  <div id="app">
+    <section id="register-screen" class="screen hidden">
+      <div class="panel login-panel">
+        <h1>TYRAX</h1>
+        <p class="subtitle">ПАРТНЁРСКИЙ КАБИНЕТ</p>
+        <p id="invite-status" class="muted">ПРОВЕРКА ИНВАЙТА…</p>
+        <form id="register-form" class="hidden">
+          <label>
+            <span>ИМЯ / НАЗВАНИЕ</span>
+            <input type="text" id="reg-name" required>
+          </label>
+          <label>
+            <span>EMAIL</span>
+            <input type="email" id="reg-email" autocomplete="username" required>
+          </label>
+          <label>
+            <span>ПАРОЛЬ</span>
+            <input type="password" id="reg-pass" autocomplete="new-password" required>
+          </label>
+          <button type="submit" class="btn btn-primary">СОЗДАТЬ ДОСТУП</button>
+          <p id="register-error" class="error hidden"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="login-screen" class="screen">
+      <div class="panel login-panel">
+        <h1>TYRAX</h1>
+        <p class="subtitle">ПАРТНЁРСКИЙ КАБИНЕТ</p>
+        <form id="login-form">
+          <label>
+            <span>EMAIL</span>
+            <input type="email" id="login-email" autocomplete="username" required>
+          </label>
+          <label>
+            <span>ПАРОЛЬ</span>
+            <input type="password" id="login-pass" autocomplete="current-password" required>
+          </label>
+          <button type="submit" class="btn btn-primary">ВОЙТИ</button>
+          <p id="login-error" class="error hidden"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="main-screen" class="screen hidden">
+      <header class="topbar">
+        <div class="brand">TYRAX <span>PARTNER</span></div>
+        <nav class="tabs">
+          <button class="tab active" data-tab="dashboard">ОБЗОР</button>
+          <button class="tab" data-tab="balance">БАЛАНС</button>
+          <button class="tab" data-tab="payout">РЕКВИЗИТЫ</button>
+        </nav>
+        <button id="logout-btn" class="btn btn-ghost">ВЫХОД</button>
+      </header>
+
+      <main>
+        <section id="tab-dashboard" class="tab-panel">
+          <div class="kpi-grid">
+            <div class="kpi"><span class="kpi-label">РЕГИСТРАЦИИ</span><span id="stat-regs" class="kpi-value">0</span></div>
+            <div class="kpi"><span class="kpi-label">АКТИВНЫЕ (3+ ДН)</span><span id="stat-active" class="kpi-value">0</span></div>
+            <div class="kpi"><span class="kpi-label">КОНВЕРСИИ</span><span id="stat-conv" class="kpi-value accent">0</span></div>
+          </div>
+          <div class="section panel-block">
+            <h3>РЕФЕРАЛЬНАЯ ССЫЛКА</h3>
+            <p class="muted">Только Telegram. Новый пользователь должен перейти по ссылке и нажать Start.</p>
+            <div class="copy-row">
+              <input type="text" id="ref-link" readonly>
+              <button id="copy-ref" class="btn">КОПИРОВАТЬ</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-balance" class="tab-panel hidden">
+          <div class="kpi-grid balance-grid">
+            <div class="kpi"><span class="kpi-label">ДОСТУПНО К ВЫВОДУ</span><span id="bal-available" class="kpi-value">0 ₽</span></div>
+            <div class="kpi"><span class="kpi-label">В УДЕРЖАНИИ (3 ДН)</span><span id="bal-hold" class="kpi-value">0 ₽</span></div>
+            <div class="kpi"><span class="kpi-label">ВЫПЛАЧЕНО</span><span id="bal-paid" class="kpi-value">0 ₽</span></div>
+          </div>
+          <p class="muted note">Минимальная выплата: 2 000 ₽ или 20 USDT. Выплаты производятся вручную после запроса.</p>
+          <div class="section panel-block">
+            <h3>ИСТОРИЯ ВЫПЛАТ</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>ДАТА</th><th>СУММА</th><th>КОММЕНТАРИЙ</th></tr></thead>
+                <tbody id="payouts-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-payout" class="tab-panel hidden">
+          <div class="section panel-block">
+            <h3>РЕКВИЗИТЫ ДЛЯ ВЫПЛАТ</h3>
+            <p class="muted disclaimer">Комиссию сети USDT, перевод на карту и иные банковские комиссии оплачивает партнёр. Информация для ознакомления.</p>
+            <form id="payout-form">
+              <label>
+                <span>СПОСОБ</span>
+                <select id="payout-method">
+                  <option value="mir">КАРТА МИР</option>
+                  <option value="usdt">USDT</option>
+                </select>
+              </label>
+              <div id="mir-fields">
+                <label>
+                  <span>НОМЕР КАРТЫ МИР</span>
+                  <input type="text" id="payout-mir" inputmode="numeric" placeholder="2200 …">
+                </label>
+              </div>
+              <div id="usdt-fields" class="hidden">
+                <label>
+                  <span>АДРЕС USDT</span>
+                  <input type="text" id="payout-usdt-addr">
+                </label>
+                <label>
+                  <span>СЕТЬ</span>
+                  <select id="payout-usdt-net">
+                    <option value="TRC20">TRC20</option>
+                    <option value="ERC20">ERC20</option>
+                    <option value="TON">TON</option>
+                    <option value="BEP20">BEP20</option>
+                  </select>
+                </label>
+              </div>
+              <button type="submit" class="btn btn-primary">СОХРАНИТЬ</button>
+              <p id="payout-msg" class="muted"></p>
+            </form>
+          </div>
+        </section>
+      </main>
+    </section>
+  </div>
+  <script src="/partner/assets/app.js"></script>
+</body>
+</html>

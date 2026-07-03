@@ -38,6 +38,9 @@ type User struct {
 	BlockedUntil *time.Time `db:"blocked_until" json:"blocked_until,omitempty"`
 	// SubscriptionToken is an opaque secret embedded in Happ subscription URLs.
 	SubscriptionToken *string `db:"subscription_token" json:"-"`
+
+	// ReferredByPartnerID is set once when a new Telegram identity registers via ref_ link.
+	ReferredByPartnerID *string `db:"referred_by_partner_id" json:"referred_by_partner_id,omitempty"`
 }
 
 type Node struct {

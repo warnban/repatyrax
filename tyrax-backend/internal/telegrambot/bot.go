@@ -130,12 +130,13 @@ type Bot struct {
 	vpnSvc     service.VPNService
 	paymentSvc service.PaymentService
 	happSub    service.HappSubscriptionService
+	partnerSvc service.PartnerService
 }
 
 // Start launches the Telegram bot worker. Safe to run in a goroutine: if the
 // token is unset or the API rejects it, the worker logs and returns without
 // affecting the rest of the server.
-func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paymentSvc service.PaymentService, happSub service.HappSubscriptionService) {
+func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paymentSvc service.PaymentService, happSub service.HappSubscriptionService, partnerSvc service.PartnerService) {
 	if cfg.TelegramToken == "" {
 		slog.Warn("telegram bot: TELEGRAM_BOT_TOKEN unset, worker disabled")
 		return
@@ -168,6 +169,7 @@ func Start(cfg *config.Config, db *pgxpool.Pool, vpnSvc service.VPNService, paym
 		vpnSvc:     vpnSvc,
 		paymentSvc: paymentSvc,
 		happSub:    happSub,
+		partnerSvc: partnerSvc,
 	}
 
 	u := tgbotapi.NewUpdate(0)
@@ -251,6 +253,11 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 		return
 	}
 
+	if strings.HasPrefix(token, "ref_") {
+		b.handleStartReferral(msg, strings.TrimPrefix(token, "ref_"))
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
 	defer cancel()
 
@@ -289,6 +296,35 @@ func (b *Bot) handleStart(msg *tgbotapi.Message) {
 	m := tgbotapi.NewMessage(msg.Chat.ID, msgAccessGranted)
 	m.ReplyMarkup = mainMenuKeyboard()
 	b.send(m)
+}
+
+// handleStartReferral provisions (or loads) the identity and attributes new
+// Telegram registrations to the partner ref code. Existing identities ignore ref.
+func (b *Bot) handleStartReferral(msg *tgbotapi.Message, refCode string) {
+	refCode = strings.TrimSpace(refCode)
+	ctx, cancel := context.WithTimeout(context.Background(), dbOpTimeout)
+	defer cancel()
+
+	user, created, err := b.resolveUser(ctx, msg.From.ID, msg.From.UserName)
+	if err != nil {
+		b.fail(msg.Chat.ID, "start_referral_provision", msg.From.ID, "", err)
+		return
+	}
+
+	if created && b.partnerSvc != nil && refCode != "" {
+		if err := b.partnerSvc.AttributeReferral(ctx, user.ID, refCode); err != nil {
+			slog.Error("telegram bot", slog.String("action", "referral_attribute"), slog.String("ref_code", refCode), slog.String("user_id", user.ID), slog.String("error", err.Error()))
+		} else {
+			slog.Info("telegram bot", slog.String("action", "referral_attributed"), slog.String("ref_code", refCode), slog.String("user_id", user.ID))
+		}
+	}
+
+	slog.Info("telegram bot", slog.String("action", "start_referral"), slog.Int64("telegram_id", msg.From.ID), slog.String("ref_code", refCode), slog.Bool("created", created))
+	if created {
+		b.sendMainMenu(msg.Chat.ID, msgWelcomeNew)
+	} else {
+		b.sendMainMenu(msg.Chat.ID, msgWelcomeBack)
+	}
 }
 
 func (b *Bot) handleAccount(msg *tgbotapi.Message) {

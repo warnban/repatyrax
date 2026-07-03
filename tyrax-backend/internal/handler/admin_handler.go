@@ -31,6 +31,7 @@ type AdminHandler struct {
 	supportRepo  repository.SupportRepository
 	userRepo     repository.UserRepository
 	adminSvc     service.AdminService
+	partnerSvc   service.PartnerService
 	messenger    SupportMessenger
 }
 
@@ -40,6 +41,7 @@ func NewAdminHandler(
 	supportRepo repository.SupportRepository,
 	userRepo repository.UserRepository,
 	adminSvc service.AdminService,
+	partnerSvc service.PartnerService,
 	messenger SupportMessenger,
 ) *AdminHandler {
 	return &AdminHandler{
@@ -48,6 +50,7 @@ func NewAdminHandler(
 		supportRepo: supportRepo,
 		userRepo:    userRepo,
 		adminSvc:    adminSvc,
+		partnerSvc:  partnerSvc,
 		messenger:   messenger,
 	}
 }

@@ -21,6 +21,9 @@ func JWTAuth(secret string) fiber.Handler {
 		if strings.HasPrefix(c.Path(), "/api/v1/admin") {
 			return c.Next()
 		}
+		if strings.HasPrefix(c.Path(), "/api/v1/partner") {
+			return c.Next()
+		}
 
 		authHeader := c.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {

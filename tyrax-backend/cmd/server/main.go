@@ -75,6 +75,7 @@ func main() {
 	connRepo   := repository.NewConnectionRepository(db)
 	adminRepo  := repository.NewAdminRepository(db)
 	supportRepo := repository.NewSupportRepository(db)
+	partnerRepo := repository.NewPartnerRepository(db)
 
 	// ── External clients ──────────────────────────────────────────────────────
 	fkClient := freekassa.New(cfg.FreeKassaShopID, cfg.FreeKassaAPIKey, cfg.FreeKassaSecretWord2)
@@ -97,7 +98,8 @@ func main() {
 	// to the least-loaded node. Fail-open: no data ⇒ default ping ordering.
 	nodeBalancer := service.NewNodeBalancer(nodeRepo, panelSyncer)
 	vpnSvc     := service.NewVPNService(nodeRepo, deviceRepo, userRepo, connRepo, panelSyncer, trafficSvc, nodeBalancer)
-	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient)
+	partnerSvc := service.NewPartnerService(partnerRepo, userRepo, orderRepo)
+	paymentSvc := service.NewPaymentService(orderRepo, userRepo, fkClient, cpClient, partnerSvc)
 	inviteSvc  := service.NewInviteService(userRepo, inviteRepo)
 	adminSvc   := service.NewAdminService(userRepo, adminRepo)
 	happSubSvc := service.NewHappSubscriptionService(
@@ -112,10 +114,12 @@ func main() {
 	// Live load sampler for node balancing. Fail-open: never affects the tunnel.
 	go nodeBalancer.RunLoop(ctx)
 
+	go partnerSvc.RunLoop(ctx)
+
 	// ── Telegram bot worker ────────────────────────────────────────────────────
 	// Full bot: auth deep links, account, config delivery, devices, payments.
 	// No-op if TELEGRAM_BOT_TOKEN is unset.
-	go telegrambot.Start(cfg, db, vpnSvc, paymentSvc, happSubSvc)
+	go telegrambot.Start(cfg, db, vpnSvc, paymentSvc, happSubSvc, partnerSvc)
 
 	supportMessenger := supportbot.Start(cfg, userRepo, supportRepo)
 
@@ -135,7 +139,8 @@ func main() {
 		cfg.AndroidAppVersion, cfg.AndroidAppVersionCode, cfg.AndroidAppURL,
 		cfg.AndroidUpdateMandatory, cfg.AndroidUpdateNotes,
 	)
-	adminH   := handler.NewAdminHandler(cfg, adminRepo, supportRepo, userRepo, adminSvc, supportMessenger)
+	adminH   := handler.NewAdminHandler(cfg, adminRepo, supportRepo, userRepo, adminSvc, partnerSvc, supportMessenger)
+	partnerH := handler.NewPartnerHandler(cfg, partnerSvc)
 
 	// ── App ───────────────────────────────────────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -213,6 +218,24 @@ func main() {
 	adminProtected.Get("/support/tickets/:id", adminH.GetTicket)
 	adminProtected.Post("/support/tickets/:id/reply", adminH.ReplyTicket)
 	adminProtected.Post("/support/tickets/:id/close", adminH.CloseTicket)
+	adminProtected.Get("/partners", adminH.ListPartners)
+	adminProtected.Get("/partners/settings", adminH.GetPartnerSettings)
+	adminProtected.Put("/partners/settings", adminH.UpdatePartnerSettings)
+	adminProtected.Post("/partners/invites", adminH.CreatePartnerInvite)
+	adminProtected.Get("/partners/:id", adminH.GetPartner)
+	adminProtected.Put("/partners/:id", adminH.UpdatePartnerOverride)
+	adminProtected.Post("/partners/:id/payout", adminH.RecordPartnerPayout)
+
+	// Partner portal API
+	partnerPublic := api.Group("/partner")
+	partnerPublic.Get("/invites/:token", partnerH.ValidateInvite)
+	partnerPublic.Post("/auth/register", middleware.AuthRateLimiter(), partnerH.Register)
+	partnerPublic.Post("/auth/login", middleware.AuthRateLimiter(), partnerH.Login)
+
+	partnerProtected := api.Group("/partner", middleware.PartnerJWTAuth(cfg.PartnerJWTSecret()), middleware.UserRateLimiter())
+	partnerProtected.Get("/dashboard", partnerH.Dashboard)
+	partnerProtected.Put("/payout-details", partnerH.UpdatePayoutDetails)
+	partnerProtected.Get("/payouts", partnerH.ListPayouts)
 
 	// Payments
 	protected.Post("/payment/create",            paymentH.CreatePayment)
@@ -233,13 +256,22 @@ func main() {
 		if strings.HasPrefix(host, "admin.") || strings.HasPrefix(path, "/admin") {
 			c.Locals("serve_admin_ui", true)
 		}
+		if strings.HasPrefix(host, "partner.") || strings.HasPrefix(path, "/partner") {
+			c.Locals("serve_partner_ui", true)
+		}
 		return c.Next()
 	})
 	app.Static("/admin/assets", "./admin/assets")
 	app.Get("/admin/*", serveAdminSPA)
+	app.Static("/partner/assets", "./partner/assets")
+	app.Get("/partner/*", servePartnerSPA)
+	app.Get("/register", servePartnerSPA)
 	app.Get("/", func(c *fiber.Ctx) error {
 		if c.Locals("serve_admin_ui") == true {
 			return c.SendFile("./admin/index.html")
+		}
+		if c.Locals("serve_partner_ui") == true {
+			return c.SendFile("./partner/index.html")
 		}
 		return c.Next()
 	})
@@ -272,4 +304,12 @@ func serveAdminSPA(c *fiber.Ctx) error {
 		return fiber.ErrNotFound
 	}
 	return c.SendFile("./admin/index.html")
+}
+
+func servePartnerSPA(c *fiber.Ctx) error {
+	path := c.Path()
+	if c.Locals("serve_partner_ui") != true && !strings.HasPrefix(path, "/partner") && path != "/register" {
+		return fiber.ErrNotFound
+	}
+	return c.SendFile("./partner/index.html")
 }

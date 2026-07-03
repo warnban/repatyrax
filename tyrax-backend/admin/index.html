@@ -32,6 +32,7 @@
         <div class="brand">TYRAX <span>ADMIN</span></div>
         <nav class="tabs">
           <button class="tab active" data-tab="users">ПОЛЬЗОВАТЕЛИ</button>
+          <button class="tab" data-tab="partners">ПАРТНЁРЫ</button>
           <button class="tab" data-tab="support">ПОДДЕРЖКА</button>
         </nav>
         <button id="logout-btn" class="btn btn-ghost">EXIT</button>
@@ -56,6 +57,35 @@
                 </tr>
               </thead>
               <tbody id="users-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-partners" class="tab-panel hidden">
+          <div class="toolbar">
+            <label class="inline-label">
+              <span>ГЛОБАЛЬНЫЙ %</span>
+              <input type="number" id="global-rate" min="0" max="100" step="0.1" style="max-width:100px">
+            </label>
+            <button id="save-rate-btn" class="btn">СОХРАНИТЬ %</button>
+            <button id="create-invite-btn" class="btn btn-primary">СОЗДАТЬ ИНВАЙТ</button>
+            <span id="invite-link-out" class="muted"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ПАРТНЁР</th>
+                  <th>REF</th>
+                  <th>РЕГ</th>
+                  <th>АКТИВ</th>
+                  <th>КОНВ</th>
+                  <th>ДОСТУПНО</th>
+                  <th>HOLD</th>
+                  <th>ВЫПЛАЧЕНО</th>
+                </tr>
+              </thead>
+              <tbody id="partners-body"></tbody>
             </table>
           </div>
         </section>
@@ -87,6 +117,14 @@
         <button id="modal-close" class="btn btn-ghost">✕</button>
       </div>
       <div id="modal-body" class="modal-body"></div>
+    </dialog>
+
+    <dialog id="partner-modal">
+      <div class="modal-head">
+        <h2 id="partner-modal-title">ПАРТНЁР</h2>
+        <button id="partner-modal-close" class="btn btn-ghost">✕</button>
+      </div>
+      <div id="partner-modal-body" class="modal-body"></div>
     </dialog>
   </div>
   <script src="/admin/assets/app.js"></script>

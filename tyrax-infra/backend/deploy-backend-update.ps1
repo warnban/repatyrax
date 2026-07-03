@@ -26,6 +26,16 @@ cd tyrax-backend
 docker compose up -d --build
 docker compose ps
 curl -fsS http://127.0.0.1:8080/health
+if ! grep -q 'partner.tyrax.tech' /etc/caddy/Caddyfile 2>/dev/null; then
+  cat >>/etc/caddy/Caddyfile <<'CADDY'
+
+partner.tyrax.tech {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8080
+}
+CADDY
+  systemctl reload caddy
+fi
 "@
 
 Write-Host "Updating backend on $sshTarget ($RepoDir)..." -ForegroundColor Cyan

@@ -102,6 +102,34 @@ func (r *orderRepository) MarkPaid(ctx context.Context, orderID string) error {
 	return nil
 }
 
+func (r *orderRepository) MarkRefunded(ctx context.Context, orderID string) error {
+	ctx, cancel := context.WithTimeout(ctx, orderQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.Exec(ctx,
+		"UPDATE orders SET status = $1 WHERE id = $2",
+		model.OrderRefunded, orderID)
+	if err != nil {
+		return fmt.Errorf("mark order refunded: %w", err)
+	}
+	return nil
+}
+
+func (r *orderRepository) CountPaidOrdersByUser(ctx context.Context, userID string) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, orderQueryTimeout)
+	defer cancel()
+
+	var n int
+	err := r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM orders WHERE user_id = $1 AND status = $2`,
+		userID, model.OrderPaid,
+	).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count paid orders: %w", err)
+	}
+	return n, nil
+}
+
 func scanOrder(row rowScanner) (*model.Order, error) {
 	var o model.Order
 	if err := row.Scan(

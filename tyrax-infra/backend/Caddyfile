@@ -11,3 +11,8 @@ admin.tyrax.tech {
     encode zstd gzip
     reverse_proxy 127.0.0.1:8080
 }
+
+partner.tyrax.tech {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8080
+}

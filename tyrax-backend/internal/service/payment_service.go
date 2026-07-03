@@ -29,10 +29,11 @@ type PaymentService interface {
 }
 
 type paymentService struct {
-	orderRepo  repository.OrderRepository
-	userRepo   repository.UserRepository
-	freekassa  *freekassa.Client
-	cryptopay  *cryptopay.Client
+	orderRepo   repository.OrderRepository
+	userRepo    repository.UserRepository
+	freekassa   *freekassa.Client
+	cryptopay   *cryptopay.Client
+	partnerSvc  PartnerService
 }
 
 func NewPaymentService(
@@ -40,12 +41,14 @@ func NewPaymentService(
 	userRepo repository.UserRepository,
 	fk *freekassa.Client,
 	cp *cryptopay.Client,
+	partnerSvc PartnerService,
 ) PaymentService {
 	return &paymentService{
-		orderRepo: orderRepo,
-		userRepo:  userRepo,
-		freekassa: fk,
-		cryptopay: cp,
+		orderRepo:  orderRepo,
+		userRepo:   userRepo,
+		freekassa:  fk,
+		cryptopay:  cp,
+		partnerSvc: partnerSvc,
 	}
 }
 
@@ -164,6 +167,13 @@ func (s *paymentService) HandleFreekassaWebhook(ctx context.Context, params map[
 		slog.String("reported_amount", amount),
 	)
 
+	order.Status = model.OrderPaid
+	if s.partnerSvc != nil {
+		if err := s.partnerSvc.ProcessFirstPaidOrder(ctx, order); err != nil {
+			slog.Error("partner commission", slog.String("order_id", order.ID), slog.String("error", err.Error()))
+		}
+	}
+
 	return s.ActivateSubscription(ctx, order.UserID, order.Tier, order.Months)
 }
 
@@ -217,6 +227,13 @@ func (s *paymentService) HandleCryptoPayWebhook(ctx context.Context, body []byte
 		slog.Int("months", order.Months),
 		slog.Float64("amount_rub", order.AmountRUB),
 	)
+
+	order.Status = model.OrderPaid
+	if s.partnerSvc != nil {
+		if err := s.partnerSvc.ProcessFirstPaidOrder(ctx, order); err != nil {
+			slog.Error("partner commission", slog.String("order_id", order.ID), slog.String("error", err.Error()))
+		}
+	}
 
 	return s.ActivateSubscription(ctx, order.UserID, order.Tier, order.Months)
 }
