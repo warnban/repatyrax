@@ -113,14 +113,27 @@ public static class XrayWindowsConfigAdapter
         var extra = xhttp["extra"] as JsonObject ?? new JsonObject();
         extra["xmux"] = new JsonObject
         {
+            // 0 = no per-connection stream cap: all TUN streams share the mux (anti-throttle
+            // intent — few H2 connections, not many parallel TCP that RU DPI throttles).
             ["maxConcurrency"] = 0,
-            ["maxConnections"] = 1,
+            // Warm standby. Xray's XmuxManager keeps a pool of up to maxConnections; each
+            // connection gets its own UnreusableAt = now + rand(hMaxReusableSecs), so two
+            // connections recycle at STAGGERED times. With a single connection (1) the sole
+            // H2 mux recycled every ~2–3h and tore down in-flight streams → ~2–3h blackout →
+            // health watchdog degrade → node switch. With 2, when one recycles the other still
+            // carries traffic, so recycle is seamless. maxConcurrency=0 skips the concurrency
+            // filter, so traffic spreads across both (still only 2 muxed conns → anti-throttle).
+            ["maxConnections"] = 2,
             ["cMaxReuseTimes"] = 0,
             ["hMaxRequestTimes"] = "1000-5000",
-            // Desktop sessions run longer than mobile; 1800–3000s (~30–50 min) recycled
-            // the sole H2 mux and briefly starved health probes → false NODE DEGRADED.
+            // Time-based recycle window; the 2-connection pool above staggers these so a
+            // recycle never zeroes traffic.
             ["hMaxReusableSecs"] = "7200-10800",
-            ["hKeepAlivePeriod"] = 0,
+            // HTTP/2 ReadIdleTimeout (seconds) → H2 PING keepalive interval. 0 let Xray fall
+            // back to a browser-like default and the idle mux could be silently dropped by
+            // NAT/carrier between recycles; a deterministic 30s PING keeps the connection warm
+            // and surfaces a dead peer quickly.
+            ["hKeepAlivePeriod"] = 30,
         };
         xhttp["extra"] = extra;
     }

@@ -81,7 +81,13 @@ public sealed class XrayWindowsConfigAdapterTests
         var xmux = root.GetProperty("outbounds")[0]
             .GetProperty("streamSettings").GetProperty("xhttpSettings")
             .GetProperty("extra").GetProperty("xmux");
-        Assert.Equal(1, xmux.GetProperty("maxConnections").GetInt32());
+        // Warm standby: 2 pooled H2 connections recycle at staggered times so the ~2–3h
+        // recycle never zeroes traffic (was 1 → single mux blackout at recycle).
+        Assert.Equal(2, xmux.GetProperty("maxConnections").GetInt32());
+        // Keepalive on: deterministic H2 PING (>0s) keeps the mux from being NAT/idle-dropped.
+        Assert.True(xmux.GetProperty("hKeepAlivePeriod").GetInt32() > 0);
+        // Anti-throttle intent preserved: no per-connection stream cap.
+        Assert.Equal(0, xmux.GetProperty("maxConcurrency").GetInt32());
         Assert.Equal("7200-10800", xmux.GetProperty("hMaxReusableSecs").GetString());
 
         var routing = root.GetProperty("routing");
