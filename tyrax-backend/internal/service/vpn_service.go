@@ -502,9 +502,13 @@ func (s *vpnService) DeleteDevice(ctx context.Context, deviceID, userID string) 
 
 func (s *vpnService) GetSplitDomains(ctx context.Context) ([]string, error) {
 	return []string{
-		"yandex.ru", "ya.ru", "vk.com", "vkontakte.ru", "ok.ru", "mail.ru",
-		"gosuslugi.ru", "mos.ru", "sberbank.ru", "tinkoff.ru", "vtb.ru", "alfabank.ru", "raiffeisen.ru",
-		"ozon.ru", "wildberries.ru", "avito.ru", "hh.ru", "kinopoisk.ru", "ivi.ru", "rutube.ru",
-		"2gis.ru", "drom.ru", "auto.ru", "rbc.ru", "kommersant.ru", "ria.ru", "lenta.ru", "meduza.io",
+		"yandex.ru", "ya.ru", "yandex.net", "dzen.ru", "vk.com", "vkontakte.ru", "ok.ru", "mail.ru",
+		"max.ru", "oneme.ru",
+		"gosuslugi.ru", "nalog.gov.ru", "gostech.ru", "mos.ru",
+		"sberbank.ru", "sberbank.com", "sber.ru", "tinkoff.ru", "tbank.ru", "vtb.ru", "alfabank.ru", "raiffeisen.ru",
+		"ozon.ru", "ozon.com", "wildberries.ru", "wildberries.com", "megamarket.ru", "aliexpress.ru",
+		"mvideo.ru", "dns-shop.ru", "citilink.ru",
+		"avito.ru", "hh.ru", "kinopoisk.ru", "ivi.ru", "rutube.ru",
+		"2gis.ru", "gismeteo.ru", "drom.ru", "auto.ru", "rbc.ru", "kommersant.ru", "ria.ru", "lenta.ru", "meduza.io",
 	}, nil
 }

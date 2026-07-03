@@ -21,6 +21,13 @@ type Config struct {
 	WindowsAppVersion   string
 	Port                string
 
+	// Android in-app update manifest (served at /download/android/latest.json).
+	AndroidAppVersion      string
+	AndroidAppVersionCode  int
+	AndroidAppURL          string
+	AndroidUpdateMandatory bool
+	AndroidUpdateNotes     string
+
 	FreeKassaShopID      int
 	FreeKassaAPIKey      string
 	FreeKassaSecretWord2 string
@@ -62,6 +69,12 @@ func Load() *Config {
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", "https://api.tyrax.tech"),
 		WindowsAppVersion:   getEnv("WINDOWS_APP_VERSION", "1.0.13"),
 		Port:                getEnv("PORT", "8080"),
+
+		AndroidAppVersion:      getEnv("ANDROID_APP_VERSION", "1.0.1"),
+		AndroidAppVersionCode:  getEnvInt("ANDROID_APP_VERSION_CODE", 2),
+		AndroidAppURL:          getEnv("ANDROID_APP_URL", getEnv("WEBSITE_URL", "https://tyrax.tech")+"/download/android/TYRAX.apk"),
+		AndroidUpdateMandatory: getEnvBool("ANDROID_UPDATE_MANDATORY", false),
+		AndroidUpdateNotes:     getEnv("ANDROID_UPDATE_NOTES", ""),
 
 		FreeKassaShopID:      getEnvInt("FREEKASSA_SHOP_ID", 0),
 		FreeKassaAPIKey:      getEnv("FREEKASSA_API_KEY", ""),
@@ -116,6 +129,15 @@ func getEnvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			return b
 		}
 	}
 	return fallback

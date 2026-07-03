@@ -127,7 +127,11 @@ func main() {
 	vpnH     := handler.NewVPNHandler(vpnSvc)
 	paymentH := handler.NewPaymentHandler(paymentSvc, inviteSvc, deviceRepo, userRepo, trafficSvc)
 	subH     := handler.NewSubscriptionHandler(happSubSvc)
-	dlH      := handler.NewDownloadHandler(cfg.WebsiteURL, cfg.WindowsAppVersion)
+	dlH      := handler.NewDownloadHandler(
+		cfg.WebsiteURL, cfg.WindowsAppVersion,
+		cfg.AndroidAppVersion, cfg.AndroidAppVersionCode, cfg.AndroidAppURL,
+		cfg.AndroidUpdateMandatory, cfg.AndroidUpdateNotes,
+	)
 	adminH   := handler.NewAdminHandler(cfg, adminRepo, supportRepo, userRepo, adminSvc, supportMessenger)
 
 	// ── App ───────────────────────────────────────────────────────────────────
@@ -156,6 +160,10 @@ func main() {
 
 	// Desktop release manifest (Windows in-app update checker).
 	app.Get("/download/windows/latest.json", dlH.WindowsLatest)
+
+	// Android release manifest + self-hosted APK (in-app update banner).
+	app.Get("/download/android/latest.json", dlH.AndroidLatest)
+	app.Static("/download/android", "./download/android")
 
 	// ── API v1 ────────────────────────────────────────────────────────────────
 	api := app.Group("/api/v1")

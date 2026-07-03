@@ -1,0 +1,2 @@
+# Drop the signed release APK here as TYRAX.apk at release time.
+# Served at /download/android/TYRAX.apk; manifest at /download/android/latest.json.
