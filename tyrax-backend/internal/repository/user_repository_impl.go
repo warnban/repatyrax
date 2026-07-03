@@ -18,7 +18,8 @@ import (
 const userQueryTimeout = 5 * time.Second
 
 // userColumns is the full column set scanned into model.User, in scan order.
-const userColumns = "id, email, password_hash, telegram_id, username, registration_ip, last_seen_at, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token, email_verified"
+// registration_ip is cast to text — pgx cannot scan PostgreSQL inet into *string.
+const userColumns = "id, email, password_hash, telegram_id, username, registration_ip::text, last_seen_at, subscription_tier, subscription_end, created_at, traffic_used_bytes, traffic_period_start, blocked_until, subscription_token, email_verified"
 
 var (
 	ErrUserNotFound = errors.New("IDENTITY NOT FOUND")
